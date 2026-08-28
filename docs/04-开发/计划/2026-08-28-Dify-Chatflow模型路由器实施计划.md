@@ -97,27 +97,27 @@ def map_chatflow_request(request: LLMRequest) -> dict[str, object]: ...
 
 输出请求必须包含 `query`、`user`、`conversation_id=""`、`response_mode="streaming"`、`inputs` 和 `auto_generate_name=False`。
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 覆盖真实路径配置、API Key 脱敏、空 `conversation_id`、用户问题映射，以及旧 Dify 的 `person_name`、`character`、`memory`、`session_id`、`today_date` 输入。
 
-- [ ] **步骤 2：确认测试因模块不存在而失败**
+- [x] **步骤 2：确认测试因模块不存在而失败**
 
 ```bash
 .venv/bin/pytest services/model-router/tests/contract/test_dify_chatflow_input_contract.py -q
 ```
 
-- [ ] **步骤 3：实现最小配置和映射**
+- [x] **步骤 3：实现最小配置和映射**
 
 旧变量只在映射器内生成；`memory` 使用短期历史和长期记忆的紧凑 JSON，最多 8,000 个字符；密钥使用 `SecretStr`。
 
-- [ ] **步骤 4：运行测试和回归**
+- [x] **步骤 4：运行测试和回归**
 
 ```bash
 .venv/bin/pytest services/model-router/tests/contract/test_dify_chatflow_input_contract.py services/model-router/tests/contract/test_llm_contracts.py -q
 ```
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add services/model-router/src/model_router/providers/dify_chatflow services/model-router/tests/contract/test_dify_chatflow_input_contract.py
