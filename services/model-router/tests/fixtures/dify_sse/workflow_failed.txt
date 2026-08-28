@@ -1,0 +1,5 @@
+data: {"event":"workflow_started","task_id":"task_2","workflow_run_id":"run_2","data":{}}
+
+data: {"event":"node_finished","task_id":"task_2","workflow_run_id":"run_2","data":{"status":"failed","error":"node failed"}}
+
+data: {"event":"workflow_finished","task_id":"task_2","workflow_run_id":"run_2","data":{"status":"failed","error":"workflow failed"}}
