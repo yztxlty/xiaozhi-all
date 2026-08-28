@@ -8,9 +8,9 @@ from typing import Any
 
 import httpx
 
-from .application import create_dify_router
+from .application import create_dify_chatflow_router
 from .contracts import LLMCancelled, LLMFailed, LLMRequest, LLMStreamEvent
-from .providers.dify_workflow.config import DifyWorkflowSettings
+from .providers.dify_chatflow.config import DifyChatflowSettings
 
 
 def parse_json_object(value: str, field_name: str) -> dict[str, Any]:
@@ -40,7 +40,7 @@ def create_http_client() -> httpx.AsyncClient:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="调用无状态 Dify 工作流并输出流式事件")
+    parser = argparse.ArgumentParser(description="调用无状态 Dify Chatflow 并输出流式事件")
     parser.add_argument("文本", help="本轮用户文本")
     parser.add_argument("--用户标识", default="本地验证用户")
     parser.add_argument("--设备标识", default=None)
@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def run(args: argparse.Namespace) -> int:
-    settings = DifyWorkflowSettings()
+    settings = DifyChatflowSettings()
     request = LLMRequest(
         session_id=f"s_{uuid.uuid4().hex}",
         turn_id=f"t_{uuid.uuid4().hex}",
@@ -68,7 +68,7 @@ async def run(args: argparse.Namespace) -> int:
     cancel_event = asyncio.Event()
     exit_code = 0
     async with create_http_client() as http:
-        router = create_dify_router(settings, http)
+        router = create_dify_chatflow_router(settings, http)
         async for event in router.stream(request, cancel_event):
             print(event_to_json(event), flush=True)
             if isinstance(event, LLMFailed):

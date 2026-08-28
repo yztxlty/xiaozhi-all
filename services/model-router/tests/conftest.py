@@ -1,12 +1,12 @@
 import pytest
 
 from model_router.contracts import LLMRequest
-from model_router.providers.dify_workflow.config import DifyWorkflowSettings
+from model_router.providers.dify_chatflow.config import DifyChatflowSettings
 
 
 @pytest.fixture
-def settings() -> DifyWorkflowSettings:
-    return DifyWorkflowSettings(
+def chatflow_settings() -> DifyChatflowSettings:
+    return DifyChatflowSettings(
         base_url="https://dify.example.test/v1",
         api_key="test-key-not-a-real-secret",
     )

@@ -1,9 +1,0 @@
-event: ping
-
-data: {"event":"workflow_started","task_id":"task_1","workflow_run_id":"run_1","data":{"id":"run_1"}}
-
-data: {"event":"text_chunk","task_id":"task_1","workflow_run_id":"run_1","data":{"text":"你"}}
-
-data: {"event":"text_chunk","task_id":"task_1","workflow_run_id":"run_1","data":{"text":"好"}}
-
-data: {"event":"workflow_finished","task_id":"task_1","workflow_run_id":"run_1","data":{"status":"succeeded","outputs":{"reply":"你好"},"total_tokens":2}}

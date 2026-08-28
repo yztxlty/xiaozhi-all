@@ -1,0 +1,9 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class WebSocketTransport(Protocol):
+    async def receive(self) -> str | bytes: ...
+    async def send(self, payload: str | bytes) -> None: ...
+    async def close(self, code: int = 1000) -> None: ...

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xiaozhi-all"
+version = "0.1.0"
+description = "面向智能硬件、网页端和移动端的实时人工智能陪伴平台"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+addopts = ["-p", "pytest_asyncio.plugin"]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
+  "services/model-router/tests",
+  "services/voice-session-runtime/tests",
+  "gateways/xiaozhi-websocket/tests",
+  "services/speech-router/tests",
+  "apps/realtime-server/tests",
+]
+pythonpath = [
+  "packages/realtime-protocol/src",
+  "packages/audio-codec/src",
+  "packages/provider-contracts/src",
+  "packages/observability/src",
+  "gateways/xiaozhi-websocket/src",
+  "services/voice-session-runtime/src",
+  "services/model-router/src",
+  "services/speech-router/src",
+  "apps/realtime-server/src",
+]
