@@ -1,6 +1,6 @@
 import pytest
 
-from model_router.contracts import LLMProvider, LLMRequest, LLMTextDelta
+from model_router.core.contracts import LLMProvider, LLMRequest, LLMTextDelta
 
 
 def test_llm_delta_keeps_generation_identity() -> None:
@@ -15,7 +15,7 @@ def test_llm_delta_keeps_generation_identity() -> None:
 
     delta = LLMTextDelta.from_request(
         request,
-        provider="dify-workflow-primary",
+        provider="dify-chatflow-primary",
         sequence=1,
         text="你好",
     )

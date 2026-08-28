@@ -43,11 +43,11 @@
 - 新增 `ProviderHealth(provider_id, healthy, detail)`。
 - 根目录 `contracts.py` 和 `router.py` 只做兼容导出，不包含实现。
 
-- [ ] **步骤 1：编写架构边界失败测试**
+- [x] **步骤 1：编写架构边界失败测试**
 
 测试必须断言 `model_router.core` 不导入 `providers`，并能从 `model_router.core` 导入公共契约、路由、能力和健康模型。
 
-- [ ] **步骤 2：运行失败测试**
+- [x] **步骤 2：运行失败测试**
 
 ```bash
 .venv/bin/pytest services/model-router/tests/contract/test_architecture_boundaries.py services/model-router/tests/contract/test_llm_contracts.py -q
@@ -55,11 +55,11 @@
 
 预期：因 `model_router.core` 不存在而失败。
 
-- [ ] **步骤 3：移动公共实现并保留兼容导出**
+- [x] **步骤 3：移动公共实现并保留兼容导出**
 
 `core/__init__.py` 只导出稳定公共类型；根目录模块使用显式 `from .core... import ...`，禁止通配符导入。
 
-- [ ] **步骤 4：运行核心契约和全量回归**
+- [x] **步骤 4：运行核心契约和全量回归**
 
 ```bash
 .venv/bin/pytest services/model-router/tests/contract/test_architecture_boundaries.py services/model-router/tests/contract/test_llm_contracts.py -q
@@ -68,7 +68,7 @@
 
 预期：全部通过。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add services/model-router/src/model_router services/model-router/tests/contract

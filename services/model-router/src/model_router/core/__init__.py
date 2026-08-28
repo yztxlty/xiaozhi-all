@@ -1,6 +1,7 @@
-"""兼容导出；新代码应从 :mod:`model_router.core.contracts` 导入。"""
+"""模型路由器的供应商无关核心契约。"""
 
-from .core.contracts import (
+from .capability import ProviderCapability
+from .contracts import (
     LLMCancelled,
     LLMCompleted,
     LLMEvent,
@@ -11,6 +12,8 @@ from .core.contracts import (
     LLMStreamEvent,
     LLMTextDelta,
 )
+from .health import ProviderHealth, ProviderHealthStatus
+from .router import LLMRouter
 
 __all__ = [
     "LLMCancelled",
@@ -19,7 +22,11 @@ __all__ = [
     "LLMFailed",
     "LLMProvider",
     "LLMRequest",
+    "LLMRouter",
     "LLMStarted",
     "LLMStreamEvent",
     "LLMTextDelta",
+    "ProviderCapability",
+    "ProviderHealth",
+    "ProviderHealthStatus",
 ]
