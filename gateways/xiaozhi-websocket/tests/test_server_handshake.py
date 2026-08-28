@@ -56,3 +56,35 @@ async def test_server_accepts_real_firmware_hello() -> None:
     assert response["type"] == "hello"
     assert response["transport"] == "websocket"
     assert response["audio_params"]["sample_rate"] == 16000
+
+
+@pytest.mark.asyncio
+async def test_server_forwards_text_turn_to_reply_callback() -> None:
+    websocket = FakeWebSocket(
+        [
+            json.dumps(
+                {
+                    "type": "hello",
+                    "version": 1,
+                    "transport": "websocket",
+                    "audio_params": {
+                        "format": "opus",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "frame_duration": 60,
+                    },
+                }
+            ),
+            json.dumps({"type": "text", "text": "你好"}),
+        ]
+    )
+
+    async def reply(_session_id: str, text: str) -> str:
+        return f"收到：{text}"
+
+    await handle_connection(websocket, on_text=reply)
+
+    assert json.loads(websocket.sent[1]) == {
+        "type": "llm.text.delta",
+        "text": "收到：你好",
+    }

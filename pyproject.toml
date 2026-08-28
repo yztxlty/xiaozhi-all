@@ -7,10 +7,11 @@ name = "xiaozhi-all"
 version = "0.1.0"
 description = "面向智能硬件、网页端和移动端的实时人工智能陪伴平台"
 requires-python = ">=3.12"
-dependencies = ["websockets>=13,<16"]
+dependencies = ["httpx>=0.27", "pydantic>=2.8", "pydantic-settings>=2.4", "websockets>=13,<16"]
 
 [project.scripts]
 xiaozhi-gateway = "xiaozhi_gateway.server:main"
+xiaozhi-h5-demo = "realtime_server.demo:main"
 
 [tool.pytest.ini_options]
 addopts = ["-p", "pytest_asyncio.plugin"]

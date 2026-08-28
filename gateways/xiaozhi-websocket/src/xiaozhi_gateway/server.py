@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import asyncio
 import uuid
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from .handshake import HandshakeError, parse_hello
+
+logger = logging.getLogger("xiaozhi_gateway")
 
 
 def server_hello(session_id: str, version: int = 1) -> str:
@@ -27,7 +30,11 @@ def server_hello(session_id: str, version: int = 1) -> str:
     )
 
 
-async def handle_connection(websocket: Any, on_audio: Callable[[str, bytes], Awaitable[None]] | None = None) -> None:
+async def handle_connection(
+    websocket: Any,
+    on_audio: Callable[[str, bytes], Awaitable[None]] | None = None,
+    on_text: Callable[[str, str], Awaitable[str]] | None = None,
+) -> None:
     session_id = f"s_{uuid.uuid4().hex}"
     first = await websocket.recv()
     if not isinstance(first, str):
@@ -40,6 +47,7 @@ async def handle_connection(websocket: Any, on_audio: Callable[[str, bytes], Awa
         await websocket.close(code=1002, reason="hello 不符合协议")
         return
 
+    logger.info("握手成功 session_id=%s version=%s", session_id, hello.get("version", 1))
     await websocket.send(server_hello(session_id, hello.get("version", 1)))
     async for message in websocket:
         if isinstance(message, bytes):
@@ -53,6 +61,14 @@ async def handle_connection(websocket: Any, on_audio: Callable[[str, bytes], Awa
             return
         if control.get("type") == "ping":
             await websocket.send(json.dumps({"type": "pong"}, separators=(",", ":")))
+        elif control.get("type") == "text" and isinstance(control.get("text"), str):
+            if on_text is None:
+                await websocket.send(json.dumps({"type": "error", "code": "TEXT_HANDLER_UNAVAILABLE"}))
+                continue
+            logger.info("收到文本 session_id=%s text_length=%s", session_id, len(control["text"]))
+            reply = await on_text(session_id, control["text"])
+            logger.info("生成回复 session_id=%s reply_length=%s", session_id, len(reply))
+            await websocket.send(json.dumps({"type": "llm.text.delta", "text": reply}, ensure_ascii=False))
 
 
 async def serve(host: str = "0.0.0.0", port: int = 8765) -> None:
