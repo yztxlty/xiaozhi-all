@@ -25,7 +25,7 @@ async def test_device_output_buffers_pcm_until_one_firmware_frame():
 
 
 @pytest.mark.asyncio
-async def test_device_output_paces_bursts_after_five_frame_prebuffer(monkeypatch):
+async def test_device_output_paces_every_firmware_frame(monkeypatch):
     clock = [0.0]
     sent_at = []
 
@@ -39,8 +39,7 @@ async def test_device_output_paces_bursts_after_five_frame_prebuffer(monkeypatch
     await output.write(b"\x00\x00" * (960 * 6))
 
     assert len(sent_at) == 6
-    assert sent_at[:5] == [0.0] * 5
-    assert sent_at[5] == pytest.approx(0.30)
+    assert sent_at == pytest.approx([0.0, 0.06, 0.12, 0.18, 0.24, 0.30])
 
 
 @pytest.mark.asyncio

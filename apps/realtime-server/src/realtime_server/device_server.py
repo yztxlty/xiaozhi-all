@@ -27,7 +27,7 @@ logger = logging.getLogger("xiaozhi_device_server")
 class DeviceSpeechBoundary:
     """使用已解码 PCM 的能量识别设备端一轮语音结束。"""
 
-    def __init__(self, silence_seconds: float = 0.72, rms_threshold: float = 80.0) -> None:
+    def __init__(self, silence_seconds: float = 0.72, rms_threshold: float = 35.0) -> None:
         self.silence_seconds = silence_seconds
         self.rms_threshold = rms_threshold
         self._last_voice_at: float | None = None

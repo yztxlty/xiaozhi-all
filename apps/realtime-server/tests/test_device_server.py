@@ -20,3 +20,9 @@ def test_device_speech_boundary_closes_after_voice_and_silence():
     assert not boundary.feed(voice, now=1.0)
     assert not boundary.feed(silence, now=1.70)
     assert boundary.feed(silence, now=1.72)
+
+
+def test_device_speech_boundary_accepts_quiet_voice():
+    boundary = device_server.DeviceSpeechBoundary(rms_threshold=35.0)
+    quiet_voice = (b"\x28\x00" * 960)
+    assert not boundary.feed(quiet_voice, now=1.0)

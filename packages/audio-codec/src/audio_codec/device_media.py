@@ -43,7 +43,7 @@ class DeviceOpusOutput:
 
     async def _pace(self) -> None:
         now = time.monotonic()
-        if self._sent_frames >= 5 and self._next_send_at > now:
+        if self._sent_frames and self._next_send_at > now:
             await asyncio.sleep(self._next_send_at - now)
             now = time.monotonic()
         if self._sent_frames == 0 or now - self._next_send_at > 0.06:
