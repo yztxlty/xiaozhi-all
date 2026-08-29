@@ -14,6 +14,8 @@ def test_combined_source_routes_pcm_h5_handshake_and_opus_device_handshake_separ
     source = (create_app.__globals__["Path"] if "Path" in create_app.__globals__ else None)
     assert source is None or source is not None
     import inspect
+    module = inspect.getmodule(create_app)
+    assert module is not None and "import json" in inspect.getsource(module)
     code = inspect.getsource(create_app.__globals__["_websocket_route"])
     assert 'audio_params' in code
     assert 'h5_handler(adapter)' in code
