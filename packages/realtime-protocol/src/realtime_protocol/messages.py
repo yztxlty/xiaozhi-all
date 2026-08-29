@@ -17,6 +17,7 @@ class ControlType(StrEnum):
     LISTEN = "listen"
     ABORT = "abort"
     TTS = "tts"
+    MCP = "mcp"
     PING = "ping"
     PONG = "pong"
 

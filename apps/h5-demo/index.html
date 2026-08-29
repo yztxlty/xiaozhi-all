@@ -2,409 +2,105 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>幽光 AI 语音全链路测试</title>
-  <style>
-    body{font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#252033;background:#faf7ff}
-    button{border:0;border-radius:12px;padding:12px 18px;margin:4px;background:#7654d6;color:white;font-size:16px;cursor:pointer;transition:background .2s}
-    button:disabled{opacity:.4;cursor:not-allowed}
-    button.recording{background:#e53e3e;animation:pulse 1s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-    .card{background:white;border-radius:18px;padding:22px;box-shadow:0 8px 30px #2d1b5515;margin-bottom:16px}
-    #status{font-weight:600;color:#7654d6}
-    .bubble{padding:12px 14px;margin:8px 0;border-radius:14px;background:#f1ecff;white-space:pre-wrap;line-height:1.6}
-    .bubble.me{background:#e8f4fd;text-align:right}
-    .bubble.asr{background:#fff3cd;font-size:14px;color:#856404}
-    .bubble.error{background:#ffe0e0;color:#c00}
-    input{width:calc(100% - 130px);padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px}
-    .row{display:flex;gap:8px;align-items:center;margin-top:8px}
-    #volume-bar{width:100%;height:6px;background:#e0d6f7;border-radius:3px;overflow:hidden;margin-top:8px}
-    #volume-fill{height:100%;background:#7654d6;width:0%;transition:width .1s}
-    .tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:8px;background:#e8e0f7;color:#5a3da8;margin-right:4px}
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f8f4ff">
+  <title>幽光 AI 陪伴</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='20' fill='%237653df'/%3E%3Cpath d='M32 13l4.5 14.5L51 32l-14.5 4.5L32 51l-4.5-14.5L13 32l14.5-4.5z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./app.css">
 </head>
 <body>
-<h1>幽光 AI 语音全链路测试</h1>
+  <div id="demo-layout" class="demo-layout">
+  <main class="app-shell">
+    <section id="chat-screen" class="screen chat-screen is-active" aria-label="幽光聊天">
+      <header class="chat-header">
+        <div class="brand-avatar" aria-hidden="true"><span>✦</span></div>
+        <div class="brand-copy">
+          <h1>幽光</h1>
+          <p><span id="connection-dot" class="connection-dot"></span><span id="connection-label">等待连接</span></p>
+        </div>
+        <button id="debug-toggle" class="icon-button" type="button" aria-label="展开实时调试日志" aria-expanded="false">⌁</button>
+      </header>
 
-<div class="card">
-  <p>状态：<span id="status">未连接</span></p>
-  <p style="font-size:13px;color:#666">
-    <span class="tag">ASR</span>DashScope paraformer-realtime-v2
-    <span class="tag">LLM</span>Dify Chatflow
-    <span class="tag">TTS</span>火山引擎 BigTTS v3 双向流
-  </p>
-  <button id="connect">连接服务</button>
-  <button id="listen" disabled>按住说话（PCM）</button>
-  <button id="interrupt" disabled>打断</button>
-  <div id="volume-bar"><div id="volume-fill"></div></div>
-  <p style="font-size:12px;color:#888;margin:6px 0 0"><span id="rate-info"></span></p>
-</div>
+      <div id="messages" class="messages" aria-live="polite">
+        <article class="message assistant">
+          <div class="message-avatar">✦</div>
+          <div class="message-content">
+            <span class="message-name">幽光</span>
+            <div class="bubble">晚上好呀，我是幽光。想聊聊天，还是直接给我打个电话？</div>
+          </div>
+        </article>
+      </div>
 
-<div class="card">
-  <div class="row">
-    <input id="text" placeholder="也可直接输入文字发送">
-    <button id="send" disabled>发送</button>
+      <footer class="chat-composer">
+        <button id="start-call" class="call-entry" type="button">
+          <span class="call-entry-icon">☎</span>
+          <span><strong>和幽光语音通话</strong><small>免按键，随时可以打断</small></span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <form id="text-form" class="text-form">
+          <label class="sr-only" for="text-input">输入消息</label>
+          <input id="text-input" autocomplete="off" maxlength="500" placeholder="给幽光发消息…">
+          <button id="send-text" type="submit" aria-label="发送消息">↑</button>
+        </form>
+      </footer>
+    </section>
+
+    <section id="call-screen" class="screen call-screen" aria-label="幽光实时语音通话" aria-hidden="true">
+      <div class="aurora aurora-one"></div>
+      <div class="aurora aurora-two"></div>
+      <header class="call-header">
+        <button id="back-to-chat" class="glass-button" type="button" aria-label="返回聊天">‹</button>
+        <div><strong>幽光</strong><span id="call-timer">00:00</span></div>
+        <button id="call-debug-toggle" class="glass-button" type="button" aria-label="展开实时调试日志">⌁</button>
+      </header>
+
+      <div class="call-stage">
+        <div id="mascot" class="mascot" aria-hidden="true"></div>
+        <p id="call-status" class="call-status">正在连接幽光…</p>
+        <div id="waveform" class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p id="call-hint" class="call-hint">连接后直接说话，不需要按住按钮</p>
+        <div class="live-transcript" aria-live="polite">
+          <p id="user-subtitle" class="user-subtitle"></p>
+          <p id="assistant-subtitle" class="assistant-subtitle"></p>
+        </div>
+        <div class="latency-card"><span>本轮响应</span><strong id="latency-value">—</strong><small>从说完到开始播报</small></div>
+      </div>
+
+      <div id="manual-fallback" class="manual-fallback" hidden>
+        <span>当前浏览器无法启动免按键模式</span>
+        <button id="manual-talk" type="button">按住说话</button>
+      </div>
+      <form id="call-text-panel" class="call-text-panel" hidden>
+        <label class="sr-only" for="call-text-input">通话中输入文字</label>
+        <input id="call-text-input" maxlength="500" placeholder="输入文字继续聊…">
+        <button type="submit">发送</button>
+      </form>
+      <footer class="call-controls">
+        <button id="mute" class="call-control" type="button"><span>♩</span><small>静音</small></button>
+        <button id="show-call-text" class="call-control" type="button"><span>⌨</span><small>文字</small></button>
+        <button id="manual-interrupt" class="call-control" type="button"><span>✋</span><small>打断</small></button>
+        <button id="hangup" class="call-control hangup" type="button"><span>⌕</span><small>挂断</small></button>
+      </footer>
+    </section>
+  </main>
+
+  <aside id="debug-drawer" class="debug-drawer" aria-label="实时调试日志" aria-hidden="true">
+    <header>
+      <div><strong>实时调试日志</strong><small>全链路事件与耗时（已脱敏）</small></div>
+      <button id="debug-close" type="button" aria-label="收起调试日志">×</button>
+    </header>
+    <div class="debug-chain">阿里云 Paraformer Realtime v2<br>→ 阿里云通义千问 Qwen 3.7 Flash<br>→ 火山引擎 BigTTS v3</div>
+    <div id="debug-log" class="debug-log" aria-live="polite"></div>
+    <footer><button id="debug-clear" type="button">清空</button><button id="debug-copy" type="button">复制日志</button></footer>
+  </aside>
   </div>
-</div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<div class="card" id="log-card">
-  <div id="log"></div>
-</div>
-
-<script>
-const $=id=>document.getElementById(id);
-const log=(t,cls='')=>{
-  const d=document.createElement('div');
-  d.className='bubble '+cls;
-  d.textContent=t;
-  $('log').append(d);
-  $('log-card').scrollIntoView({behavior:'smooth',block:'end'});
-  return d;
-};
-
-let ws, audioCtx, mediaStream, scriptProcessor;
-let asrBubble=null, llmBubble=null;
-
-// ── WebSocket 连接 ─────────────────────────────────────
-function wsUrl(){
-  // 网关当前启用本地 TLS；页面即使从 18080 的 HTTP 打开，也必须使用 WSS。
-  const proto='wss:';
-  const host=location.hostname||'127.0.0.1';
-  // 页面与 WebSocket 同端口时直接复用；从别的静态服务打开则回落到 18765
-  const port=location.port||(secure?'443':'80');
-  const samePort=(port==='18765');
-  return `${proto}//${host}:${samePort?port:'18765'}`;
-}
-
-$('connect').onclick=()=>{
-  ws=new WebSocket(wsUrl());
-  ws.binaryType='arraybuffer';
-
-  ws.onopen=()=>{
-    ws.send(JSON.stringify({
-      type:'hello',version:1,transport:'websocket',
-      audio_params:{format:'pcm',sample_rate:16000,channels:1,frame_duration:60}
-    }));
-    $('status').textContent='已连接，等待握手';
-  };
-
-  ws.onmessage=e=>{
-    if(e.data instanceof ArrayBuffer){
-      pushTtsPcm(e.data);
-      return;
-    }
-    let m;
-    try{m=JSON.parse(e.data);}catch{return;}
-
-    if(m.type==='hello'){
-      $('status').textContent='已连接，可对话';
-      $('listen').disabled=false;$('send').disabled=false;$('interrupt').disabled=false;
-      log('握手成功 session_id: '+m.session_id);
-    } else if(m.type==='asr.partial'){
-      if(!asrBubble){asrBubble=log('识别中：'+m.text,'asr');}
-      else{asrBubble.textContent='识别中：'+m.text;}
-    } else if(m.type==='asr.final'){
-      if(asrBubble){asrBubble.remove();asrBubble=null;}
-      log('我（语音）：'+m.text,'me');
-      llmBubble=null; // 新一轮对话，重置 LLM 气泡
-      $('status').textContent='已识别，AI回复中...';
-    } else if(m.type==='asr.empty'){
-      if(asrBubble){asrBubble.remove();asrBubble=null;}
-      log('没有识别到语音内容，请再试一次（说完再松手）','asr');
-      $('status').textContent='已连接，可对话';
-    } else if(m.type==='llm.text.delta'){
-      if(!llmBubble){llmBubble=log('幽光：','');}
-      llmBubble.textContent+= m.text;
-      $('status').textContent='AI回复中...';
-    } else if(m.type==='tts.audio'){
-      // 下一帧二进制就是 PCM
-    } else if(m.type==='tts.done'){
-      flushTts();
-      llmBubble=null; // 本轮结束，下次重新建泡
-      $('status').textContent='已连接，可对话';
-    } else if(m.type==='error'){
-      log('错误：'+m.code,'error');
-      llmBubble=null;
-      $('status').textContent='发生错误';
-    }
-  };
-
-  ws.onclose=()=>{
-    $('status').textContent='连接已断开';
-    ['listen','send','interrupt'].forEach(id=>$(id).disabled=true);
-  };
-};
-
-// ── TTS 播放（PCM 16kHz int16 → AudioContext，无缝调度）──────
-const TTS_SAMPLE_RATE=16000;
-const MIN_BLOCK_SAMPLES=Math.floor(TTS_SAMPLE_RATE*0.12); // 约 120ms 再排一次，避免碎片卡顿
-let pcmCarry=new Uint8Array(0);   // 跨帧残留的半个 int16
-let pendingSamples=[];            // 待排的 Float32Array 片段
-let pendingCount=0;               // 待排样本总数
-let playCursor=0;                 // 下一块的绝对播放起点（audioCtx 时间轴）
-let activeSources=[];
-
-function ensureAudioCtx(){
-  if(!audioCtx||audioCtx.state==='closed'){
-    // 不强制 16kHz：Chrome 的回声消除/降噪跑在硬件原生采样率，
-    // 强行指定会让 getUserMedia 采集输出全零静音。采集侧在 JS 里重采样到 16k。
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  }
-  if(audioCtx.state==='suspended') audioCtx.resume();
-}
-
-// 收到一帧二进制 PCM
-function pushTtsPcm(arrayBuffer){
-  ensureAudioCtx();
-  const incoming=new Uint8Array(arrayBuffer);
-  // 拼接上一帧残留的奇数字节
-  let bytes;
-  if(pcmCarry.length){
-    bytes=new Uint8Array(pcmCarry.length+incoming.length);
-    bytes.set(pcmCarry,0);
-    bytes.set(incoming,pcmCarry.length);
-    pcmCarry=new Uint8Array(0);
-  }else{
-    bytes=incoming;
-  }
-  const usable=bytes.length-(bytes.length%2);
-  if(usable<bytes.length) pcmCarry=bytes.slice(usable);
-  if(usable===0) return;
-
-  const i16=new Int16Array(bytes.buffer,bytes.byteOffset,usable/2);
-  const f32=new Float32Array(i16.length);
-  for(let i=0;i<i16.length;i++) f32[i]=i16[i]/32768;
-  pendingSamples.push(f32);
-  pendingCount+=f32.length;
-
-  if(pendingCount>=MIN_BLOCK_SAMPLES) scheduleBlock();
-}
-
-// 把累积的样本合成一块，接在 playCursor 后面播放
-function scheduleBlock(){
-  if(!pendingCount) return;
-  const merged=new Float32Array(pendingCount);
-  let off=0;
-  for(const seg of pendingSamples){merged.set(seg,off);off+=seg.length;}
-  pendingSamples=[];pendingCount=0;
-
-  const buf=audioCtx.createBuffer(1,merged.length,TTS_SAMPLE_RATE);
-  buf.copyToChannel(merged,0);
-  const src=audioCtx.createBufferSource();
-  src.buffer=buf;
-  src.connect(audioCtx.destination);
-
-  // 落后于当前时间就重新对齐，留一点余量防抖
-  const now=audioCtx.currentTime;
-  if(playCursor<now+0.02) playCursor=now+0.02;
-  src.start(playCursor);
-  playCursor+=buf.duration;
-
-  activeSources.push(src);
-  src.onended=()=>{activeSources=activeSources.filter(s=>s!==src);};
-}
-
-// tts.done：把尾巴排完
-function flushTts(){
-  if(pcmCarry.length) pcmCarry=new Uint8Array(0);
-  if(pendingCount) scheduleBlock();
-}
-
-// 打断：停掉所有已排的音频并清空缓冲
-function resetTts(){
-  activeSources.forEach(s=>{try{s.stop();}catch(e){}});
-  activeSources=[];
-  pendingSamples=[];pendingCount=0;
-  pcmCarry=new Uint8Array(0);
-  playCursor=0;
-}
-
-// ── 录音（重采样到 16kHz PCM）→ WebSocket 二进制帧 ──────────
-const ASR_SAMPLE_RATE=16000;
-let muteNode=null;
-let recState='idle'; // idle | starting | recording
-let resampleLeftover=new Float32Array(0); // 跨回调残留的输入样本
-let capturedSamples=0; // 已发送的 16kHz 样本数
-
-// 降采样到 16kHz：对每个输出样本覆盖的输入区间取均值（box filter 抗折叠）
-function resampleTo16k(input, srcRate){
-  if(srcRate===ASR_SAMPLE_RATE) return input;
-
-  // 拼上一次的残留，保证帧边界连续
-  let buf;
-  if(resampleLeftover.length){
-    buf=new Float32Array(resampleLeftover.length+input.length);
-    buf.set(resampleLeftover,0);
-    buf.set(input,resampleLeftover.length);
-  }else{
-    buf=input;
-  }
-
-  const ratio=srcRate/ASR_SAMPLE_RATE;
-  const outLen=Math.floor(buf.length/ratio);
-  const out=new Float32Array(outLen);
-
-  for(let i=0;i<outLen;i++){
-    const start=i*ratio;
-    const end=start+ratio;
-    const i0=Math.floor(start);
-    const i1=Math.min(buf.length,Math.ceil(end));
-    let sum=0,cnt=0;
-    for(let j=i0;j<i1;j++){sum+=buf[j];cnt++;}
-    out[i]=cnt?sum/cnt:0;
-  }
-
-  // 未凑满一个输出样本的尾部留到下一回调
-  const consumed=Math.floor(outLen*ratio);
-  resampleLeftover=buf.slice(consumed);
-  return out;
-}
-
-async function startRecording(){
-  if(!ws||ws.readyState!==1) throw new Error('WebSocket 未连接');
-  // 非安全上下文（http + 非 localhost）浏览器根本不暴露 mediaDevices
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    throw new Error('当前页面不是安全上下文，浏览器未提供麦克风接口。请改用 https://'+location.hostname+':18765 访问');
-  }
-  ensureAudioCtx();
-  mediaStream=await navigator.mediaDevices.getUserMedia({
-    audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}
-  });
-
-  const srcRate=audioCtx.sampleRate; // 不假定为 16000，读实际值
-  resampleLeftover=new Float32Array(0);
-  capturedSamples=0;
-  $('rate-info').textContent='设备采样率 '+srcRate+'Hz'+(srcRate!==ASR_SAMPLE_RATE?'（已重采样至 16kHz）':'');
-
-  const source=audioCtx.createMediaStreamSource(mediaStream);
-  // 缓冲区必须是 2 的幂
-  scriptProcessor=audioCtx.createScriptProcessor(4096,1,1);
-  scriptProcessor.onaudioprocess=ev=>{
-    if(recState!=='recording') return;
-    const raw=ev.inputBuffer.getChannelData(0);
-    let maxAmp=0;
-    for(let i=0;i<raw.length;i++){const a=Math.abs(raw[i]);if(a>maxAmp)maxAmp=a;}
-    $('volume-fill').style.width=Math.min(100,maxAmp*300)+'%';
-
-    const f32=resampleTo16k(raw,srcRate);
-    const i16=new Int16Array(f32.length);
-    for(let i=0;i<f32.length;i++){
-      const s=Math.max(-1,Math.min(1,f32[i]));
-      i16[i]=s<0?s*32768:s*32767;
-    }
-    capturedSamples+=i16.length;
-    if(ws&&ws.readyState===1) ws.send(i16.buffer);
-  };
-  // 静音节点：避免麦克风直连扬声器造成啸叫回声
-  muteNode=audioCtx.createGain();
-  muteNode.gain.value=0;
-  source.connect(scriptProcessor);
-  scriptProcessor.connect(muteNode);
-  muteNode.connect(audioCtx.destination);
-}
-
-function teardownRecording(){
-  $('volume-fill').style.width='0%';
-  if(scriptProcessor){scriptProcessor.onaudioprocess=null;scriptProcessor.disconnect();scriptProcessor=null;}
-  if(muteNode){muteNode.disconnect();muteNode=null;}
-  if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
-}
-
-function resetListenButton(){
-  $('listen').classList.remove('recording');
-  $('listen').textContent='按住说话（PCM）';
-}
-
-// ── 按住说话状态机 ───────────────────────────────────────
-// recState 保证按下/松开永不错位；pressEnded 处理 await 期间提前松手
-let pressEnded=false;
-
-async function onPressStart(ev){
-  ev.preventDefault();
-  if(recState!=='idle') return;
-  if(!ws||ws.readyState!==1){log('请先连接服务','error');return;}
-
-  pressEnded=false;
-  recState='starting';
-  $('listen').classList.add('recording');
-  $('listen').textContent='松开结束';
-  $('status').textContent='正在录音...';
-
-  try{
-    await startRecording();
-  }catch(err){
-    // getUserMedia 被拒绝 / 无麦克风 / 缓冲区参数非法等
-    recState='idle';
-    teardownRecording();
-    resetListenButton();
-    $('status').textContent='录音失败';
-    log('录音启动失败：'+(err&&err.name?err.name+' - ':'')+(err&&err.message?err.message:String(err)),'error');
-    console.error('[H5] startRecording 失败',err);
-    return;
-  }
-
-  if(pressEnded){
-    // await 期间用户已松手，立即收尾并提交
-    recState='recording';
-    finishRecording();
-  }else{
-    recState='recording';
-  }
-}
-
-function finishRecording(){
-  if(recState!=='recording') return;
-  recState='idle';
-  const ms=Math.round(capturedSamples/ASR_SAMPLE_RATE*1000);
-  teardownRecording();
-  resetListenButton();
-
-  if(!ws||ws.readyState!==1){$('status').textContent='连接已断开';return;}
-
-  // 太短的片段 ASR 无法识别，直接提示而不是白等一轮
-  if(ms<300){
-    log('录音过短（'+ms+'ms），请按住说完再松手','asr');
-    $('status').textContent='已连接，可对话';
-    return;
-  }
-
-  log('已录制 '+ms+'ms，识别中...','asr');
-  ws.send(JSON.stringify({type:'audio_commit'}));
-  $('status').textContent='识别中...';
-}
-
-function onPressEnd(){
-  pressEnded=true;
-  if(recState==='starting') return;   // 等 onPressStart 的 await 收尾
-  if(recState!=='recording') return;  // 本来就没在录
-  finishRecording();
-}
-
-$('listen').addEventListener('mousedown', onPressStart);
-$('listen').addEventListener('touchstart', onPressStart, {passive:false});
-document.addEventListener('mouseup', onPressEnd);
-document.addEventListener('touchend', onPressEnd);
-document.addEventListener('touchcancel', onPressEnd);
-
-// ── 文字发送 ─────────────────────────────────────────────
-$('send').onclick=()=>{
-  const t=$('text').value.trim();
-  if(!t||!ws||ws.readyState!==1) return;
-  log('我：'+t,'me');
-  llmBubble=null;
-  ws.send(JSON.stringify({type:'text',text:t}));
-  $('text').value='';
-  $('status').textContent='AI回复中...';
-};
-$('text').onkeydown=ev=>{if(ev.key==='Enter')$('send').click();};
-
-// ── 打断 ─────────────────────────────────────────────────
-$('interrupt').onclick=()=>{
-  resetTts();
-  if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'interrupt'}));
-  llmBubble=null;
-  $('status').textContent='已打断，可对话';
-};
-</script>
+  <script defer src="./运行配置.js"></script>
+  <script defer src="./call-core.js"></script>
+  <script defer src="./mascot-layer-layout.js"></script>
+  <script defer src="./mascot-assets.js"></script>
+  <script defer src="./mascot-controller.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>

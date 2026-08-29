@@ -12,6 +12,8 @@ dist/
 build/
 *.egg-info/
 .worktrees/
+.runtime/
+配置/85发布配置.env
 
 # 自签 TLS 证书（含私钥，仅供本地开发）
 certs/
