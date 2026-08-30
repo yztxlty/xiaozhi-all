@@ -30,7 +30,8 @@ def test_device_speech_boundary_accepts_quiet_voice():
     assert not boundary.feed(quiet_voice, now=1.0)
 
 
-def test_device_audio_interrupts_a_pending_turn_without_relying_on_rms():
+def test_device_audio_interrupt_only_comes_from_detected_voice():
     source = inspect.getsource(device_server.handle_device_connection)
-    assert "if not runtime.turn_done.is_set():" in source
+    assert "is_voice = speech_boundary.is_voice(pcm)" in source
+    assert "if not runtime.turn_done.is_set() and is_voice:" in source
     assert "await interrupt_current_turn()" in source
