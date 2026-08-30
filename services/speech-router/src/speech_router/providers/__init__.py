@@ -224,6 +224,7 @@ class VolcengineTTSProvider:
         self._audio_sink: Callable[[bytes], Awaitable[None]] | None = None
         self._active_session_id: str | None = None
         self._connection_started_at: float | None = None
+        self._audio_packets = 0
 
     def set_audio_sink(self, sink: Callable[[bytes], Awaitable[None]] | None) -> None:
         """设置实时音频下游；Pipecat 用它直接接收双流 TTS 音频。"""
@@ -310,6 +311,9 @@ class VolcengineTTSProvider:
                 event, session_id, audio = _parse(raw)
                 is_active = session_id is None or session_id == self._active_session_id
                 if event == EVENT_TTSResponse and audio and is_active:
+                    self._audio_packets += 1
+                    if self._audio_packets == 1:
+                        logger.info("[TTS] 首个音频包 session_id=%s bytes=%d", (session_id or "")[:8], len(audio))
                     if self._audio_sink is not None:
                         await self._audio_sink(audio)
                     else:
@@ -320,6 +324,7 @@ class VolcengineTTSProvider:
                     event in (EVENT_SessionCanceled, EVENT_SessionFinished, EVENT_SessionFailed)
                     and session_id == self._active_session_id
                 ):
+                    logger.info("[TTS] 会话结束 event=%s session_id=%s audio_packets=%d", event, (session_id or "")[:8], self._audio_packets)
                     self._active_session_id = None
                 self._resolve_event(event, session_id)
         except asyncio.CancelledError:
@@ -343,6 +348,7 @@ class VolcengineTTSProvider:
         await self._ensure_connection()
         self._audio_queue = asyncio.Queue()
         self._active_session_id = session_id
+        self._audio_packets = 0
         started = self._wait_for_event(EVENT_SessionStarted, session_id)
         async with self._send_lock:
             await _send(

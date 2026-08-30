@@ -97,6 +97,7 @@ class _ClientOutputProcessor(FrameProcessor):
             await self._send_bytes(frame.audio)
         elif isinstance(frame, TTSStoppedFrame):
             if not self._replacement_pending_audio:
+                logger.info("[stream] tts.done audio_seq=%d", self._audio_sequence)
                 await self._send_json({"type": "tts.done"})
                 self._turn_done.set()
         elif isinstance(frame, ErrorFrame):
