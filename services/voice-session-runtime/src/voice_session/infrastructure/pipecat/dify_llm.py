@@ -6,7 +6,13 @@ from contextlib import suppress
 from typing import Any
 
 from model_router.core.contracts import LLMRequest, LLMTextDelta
-from pipecat.frames.frames import Frame, InterruptionFrame, LLMContextFrame, LLMTextFrame
+from pipecat.frames.frames import (
+    Frame,
+    InterruptionFrame,
+    LLMContextFrame,
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
+)
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 
@@ -63,6 +69,7 @@ class DifyPipecatLLM(FrameProcessor):
             async for event in self._provider.stream(request, cancel_event):
                 if isinstance(event, LLMTextDelta):
                     await self.push_frame(LLMTextFrame(event.text), direction)
+            await self.push_frame(LLMFullResponseEndFrame(), direction)
         except asyncio.CancelledError:
             cancel_event.set()
             raise
