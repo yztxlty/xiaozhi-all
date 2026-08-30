@@ -1,7 +1,15 @@
 import inspect
-
-from realtime_server.device_server import is_device_path, should_interrupt_device_turn
 import realtime_server.device_server as device_server
+
+from realtime_server.device_server import (
+    _new_device_audio_queue,
+    is_device_path,
+    should_interrupt_device_turn,
+)
+
+
+def test_device_audio_queue_does_not_backpressure_websocket_reader():
+    assert _new_device_audio_queue().maxsize == 0
 
 
 def test_device_paths_are_separate_from_h5_paths():

@@ -24,6 +24,11 @@ from voice_session.infrastructure.pipecat.runtime import PipecatVoiceRuntime
 logger = logging.getLogger("xiaozhi_device_server")
 
 
+def _new_device_audio_queue() -> asyncio.Queue[bytes | None]:
+    # 设备上行必须持续读取；不能让 ASR 云端的瞬时延迟反压到 ESP32 音频发送任务。
+    return asyncio.Queue()
+
+
 class DeviceSpeechBoundary:
     """使用已解码 PCM 的能量识别设备端一轮语音结束。"""
 
@@ -113,7 +118,7 @@ async def handle_device_connection(websocket: Any) -> None:
         # 后台预热不阻塞设备首帧收音，并尽量让首轮复用已建立的 TTS 连接。
         warmup_task = asyncio.create_task(_warmup_pipecat_processors(processors))
         decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
-        audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=32)
+        audio_queue: asyncio.Queue[bytes | None] = _new_device_audio_queue()
         binary_frames = 0
 
         async def start_asr() -> None:
@@ -121,7 +126,7 @@ async def handle_device_connection(websocket: Any) -> None:
             if asr_task is not None and not asr_task.done():
                 return
             cancel = asyncio.Event()
-            audio_queue = asyncio.Queue(maxsize=32)
+            audio_queue = _new_device_audio_queue()
             decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
             speech_boundary.reset()
             input_closed = False
@@ -146,7 +151,7 @@ async def handle_device_connection(websocket: Any) -> None:
                 asr_task.cancel()
                 await asyncio.gather(asr_task, return_exceptions=True)
             asr_task = None
-            audio_queue = asyncio.Queue(maxsize=32)
+            audio_queue = _new_device_audio_queue()
             decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
             speech_boundary.reset()
             input_closed = False
@@ -164,7 +169,7 @@ async def handle_device_connection(websocket: Any) -> None:
                     await asyncio.gather(asr_task, return_exceptions=True)
                     asr_task = None
                 cancel.set()
-                audio_queue = asyncio.Queue(maxsize=32)
+                audio_queue = _new_device_audio_queue()
                 decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
                 speech_boundary.reset()
                 input_closed = False
