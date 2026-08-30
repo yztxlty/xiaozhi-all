@@ -527,8 +527,9 @@ async def handler(websocket) -> None:
         await websocket.close(code=1002, reason="首帧不是 JSON")
         return
 
+    http = httpx.AsyncClient(**_dify_http_client_options())
     try:
-        processors = _build_pipecat_processors(None)
+        processors = _build_pipecat_processors(http)
         runtime = PipecatVoiceRuntime(
             processors,
             send_json,
@@ -538,6 +539,7 @@ async def handler(websocket) -> None:
     except Exception:
         logger.exception("[handler] Pipecat 启动失败 session=%s", session_id[:8])
         await send_json({"type": "error", "code": "VOICE_RUNTIME_START_FAILED"})
+        await http.aclose()
         return
 
     await send_json({
@@ -628,6 +630,7 @@ async def handler(websocket) -> None:
             await runtime.close()
         except Exception:
             logger.debug("[handler] 连接关闭阶段忽略发送失败", exc_info=True)
+        await http.aclose()
 
 
 _H5_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../h5-demo"))
