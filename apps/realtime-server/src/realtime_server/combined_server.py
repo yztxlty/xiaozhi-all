@@ -84,7 +84,7 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
     if request.headers.get("Device-Id"):
         logger.info("[ws_route] device path=%s header_device=1 format=%s", request.path, hello_audio_format)
         await handle_device_connection(adapter)
-    elif request.path == "/xiaozhi/v1/ws" or request.path.endswith("/xiaozhi/v1/ws"):
+    elif hello_audio_format == "opus" or request.path == "/xiaozhi/v1/ws" or request.path.endswith("/xiaozhi/v1/ws"):
         try:
             hello = json.loads(first) if isinstance(first, str) else {}
         except json.JSONDecodeError:
@@ -147,6 +147,10 @@ def create_app() -> web.Application:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     web.run_app(
         create_app(),
         host=os.getenv("XIAOZHI_DEVICE_HOST", "0.0.0.0"),
