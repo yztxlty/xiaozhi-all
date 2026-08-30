@@ -74,7 +74,7 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
     # aiohttp 可能仍看到带前缀的路径，不能只依赖 request.path。
     if request.headers.get("Device-Id"):
         await handle_device_connection(adapter)
-    elif request.path == "/xiaozhi/v1/ws":
+    elif request.path == "/xiaozhi/v1/ws" or request.path.endswith("/xiaozhi/v1/ws"):
         try:
             hello = json.loads(first) if isinstance(first, str) else {}
         except json.JSONDecodeError:

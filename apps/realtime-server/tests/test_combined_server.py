@@ -20,5 +20,6 @@ def test_combined_source_routes_pcm_h5_handshake_and_opus_device_handshake_separ
     assert 'audio_params' in code
     assert 'Device-Id' in code
     assert 'if request.headers.get("Device-Id"):' in code
+    assert 'request.path.endswith("/xiaozhi/v1/ws")' in code
     assert 'h5_handler(adapter)' in code
     assert 'handle_device_connection(adapter)' in code
