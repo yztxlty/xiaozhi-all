@@ -54,6 +54,13 @@ def is_device_path(path: str) -> bool:
     return path.split("?", 1)[0] == "/xiaozhi/v1/ws"
 
 
+def should_interrupt_device_turn(
+    *, input_closed: bool, is_voice: bool, asr_done: bool, runtime_busy: bool
+) -> bool:
+    """新语音只打断已闭合或已完成识别但仍在播报的旧轮次。"""
+    return is_voice and (input_closed or (asr_done and runtime_busy))
+
+
 async def handle_device_connection(websocket: Any) -> None:
     session_id = f"s_{uuid.uuid4().hex}"
     first = await websocket.recv()
@@ -177,7 +184,12 @@ async def handle_device_connection(websocket: Any) -> None:
                 is_voice = speech_boundary.is_voice(pcm)
                 # 同一轮 ASR 仍在上传音频时，提前生成产生的“未完成”不能被误当成新轮次。
                 # 只有上一轮已闭合后再次检测到语音，才执行播报打断并重开 ASR。
-                if input_closed and is_voice:
+                if should_interrupt_device_turn(
+                    input_closed=input_closed,
+                    is_voice=is_voice,
+                    asr_done=asr_task is not None and asr_task.done(),
+                    runtime_busy=not runtime.turn_done.is_set(),
+                ):
                     await interrupt_current_turn()
                 await start_asr()
                 if is_voice:

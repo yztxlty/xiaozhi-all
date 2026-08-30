@@ -1,6 +1,6 @@
 import inspect
 
-from realtime_server.device_server import is_device_path
+from realtime_server.device_server import is_device_path, should_interrupt_device_turn
 import realtime_server.device_server as device_server
 
 
@@ -33,5 +33,14 @@ def test_device_speech_boundary_accepts_quiet_voice():
 def test_device_audio_interrupt_only_comes_from_detected_voice():
     source = inspect.getsource(device_server.handle_device_connection)
     assert "is_voice = speech_boundary.is_voice(pcm)" in source
-    assert "if input_closed and is_voice:" in source
+    assert "should_interrupt_device_turn(" in source
     assert "await interrupt_current_turn()" in source
+
+
+def test_new_voice_interrupts_finished_asr_while_tts_is_busy():
+    assert should_interrupt_device_turn(
+        input_closed=False, is_voice=True, asr_done=True, runtime_busy=True
+    )
+    assert not should_interrupt_device_turn(
+        input_closed=False, is_voice=True, asr_done=False, runtime_busy=True
+    )
