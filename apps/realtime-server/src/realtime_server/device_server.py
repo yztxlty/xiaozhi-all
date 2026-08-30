@@ -171,17 +171,15 @@ async def handle_device_connection(websocket: Any) -> None:
                     logger.info("[device] first audio session=%s bytes=%d", session_id[:8], len(message))
                 pcm = message if decoder is None else decoder.decode(message)
                 is_voice = speech_boundary.is_voice(pcm)
-                # 设备在上一轮播报/生成未完成时发来的任意音频，都代表用户开始了新一轮输入。
-                # 设备会持续上送静音帧，静音不能取消当前 TTS；只有真实语音才是打断。
-                if not runtime.turn_done.is_set() and is_voice:
+                # 同一轮 ASR 仍在上传音频时，提前生成产生的“未完成”不能被误当成新轮次。
+                # 只有上一轮已闭合后再次检测到语音，才执行播报打断并重开 ASR。
+                if input_closed and is_voice:
                     await interrupt_current_turn()
                 await start_asr()
                 if is_voice:
                     last_voice_at = time.monotonic()
                 if input_closed:
-                    if speech_boundary.is_voice(pcm) and asr_task is not None and asr_task.done():
-                        await start_asr()
-                    else:
+                    if not is_voice:
                         continue
                 await audio_queue.put(pcm)
                 if speech_boundary.feed(pcm):
