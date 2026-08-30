@@ -19,6 +19,7 @@ class PreemptiveGenerationCoordinator:
     """
 
     _PUNCTUATION = "，。！？；：,.!?;:、 \t\r\n"
+    _MIN_PREEMPTIVE_CHARS = 3
 
     def __init__(
         self,
@@ -48,14 +49,24 @@ class PreemptiveGenerationCoordinator:
                 await self._cancel_pending_partial()
                 await self._submit_partial_once()
                 return
-            await self._schedule_partial()
+        # 在拾音尚未结束时也提前生成；commit 只负责把当前识别结果锁定为本轮。
+        await self._schedule_partial()
 
-    async def commit(self) -> str:
+    async def commit(self, *, force_short: bool = True) -> str:
         self._committed = True
         self._partial_at_commit = self._latest_partial
         if self._final_text and not self._submitted_text:
             await self._runtime.submit_text(self._final_text)
             self._submitted_text = self._final_text
+        elif (
+            self._latest_partial
+            and force_short
+            and len(self._normalize(self._latest_partial)) < self._MIN_PREEMPTIVE_CHARS
+            and not self._submitted_text
+        ):
+            # 短句不允许在拾音中抢跑，但用户结束说话后仍立即提交。
+            await self._runtime.submit_text(self._latest_partial)
+            self._submitted_text = self._latest_partial
         else:
             await self._schedule_partial()
         return self._submitted_text
@@ -107,7 +118,10 @@ class PreemptiveGenerationCoordinator:
                 self._submit_task = None
 
     async def _submit_partial_once(self) -> None:
-        if self._latest_partial and not self._submitted_text:
+        if (
+            len(self._normalize(self._latest_partial)) >= self._MIN_PREEMPTIVE_CHARS
+            and not self._submitted_text
+        ):
             await self._runtime.submit_text(self._latest_partial)
             self._submitted_text = self._latest_partial
 

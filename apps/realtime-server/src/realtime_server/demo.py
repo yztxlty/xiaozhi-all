@@ -419,7 +419,8 @@ async def _asr_then_pipeline(
             chunk = await audio_queue.get()
             if chunk is None:
                 audio_committed.set()
-                submitted = "" if cancel.is_set() else await preemptive.commit()
+                # 短部分结果先不抢跑，等待 ASRFinal；足够长的部分结果仍可立即生成。
+                submitted = "" if cancel.is_set() else await preemptive.commit(force_short=False)
                 if submitted:
                     logger.info("[asr_pipeline] 松手后使用最新识别文字提前生成: %r", submitted)
                 logger.info("[asr_pipeline] 音频队列结束，共 %d 帧", chunk_count)
