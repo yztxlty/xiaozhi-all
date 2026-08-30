@@ -66,6 +66,11 @@ def should_interrupt_device_turn(
     return is_voice and (input_closed or (asr_done and runtime_busy))
 
 
+def should_start_device_asr(*, runtime_busy: bool, is_voice: bool, asr_active: bool) -> bool:
+    """TTS 播报期间只在检测到新语音时开启下一轮 ASR。"""
+    return asr_active or not runtime_busy or is_voice
+
+
 async def handle_device_connection(websocket: Any) -> None:
     session_id = f"s_{uuid.uuid4().hex}"
     first = await websocket.recv()
@@ -196,6 +201,12 @@ async def handle_device_connection(websocket: Any) -> None:
                     runtime_busy=not runtime.turn_done.is_set(),
                 ):
                     await interrupt_current_turn()
+                if not should_start_device_asr(
+                    runtime_busy=not runtime.turn_done.is_set(),
+                    is_voice=is_voice,
+                    asr_active=asr_task is not None and not asr_task.done(),
+                ):
+                    continue
                 await start_asr()
                 if is_voice:
                     last_voice_at = time.monotonic()

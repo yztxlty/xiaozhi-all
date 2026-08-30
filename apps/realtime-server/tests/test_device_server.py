@@ -5,6 +5,7 @@ from realtime_server.device_server import (
     _new_device_audio_queue,
     is_device_path,
     should_interrupt_device_turn,
+    should_start_device_asr,
 )
 
 
@@ -52,3 +53,9 @@ def test_new_voice_interrupts_finished_asr_while_tts_is_busy():
     assert not should_interrupt_device_turn(
         input_closed=False, is_voice=True, asr_done=False, runtime_busy=True
     )
+
+
+def test_tts_does_not_start_asr_for_continuous_non_voice_audio():
+    assert not should_start_device_asr(runtime_busy=True, is_voice=False, asr_active=False)
+    assert should_start_device_asr(runtime_busy=True, is_voice=True, asr_active=False)
+    assert should_start_device_asr(runtime_busy=True, is_voice=False, asr_active=True)
