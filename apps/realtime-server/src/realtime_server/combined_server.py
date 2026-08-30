@@ -75,7 +75,8 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
             hello = json.loads(first) if isinstance(first, str) else {}
         except json.JSONDecodeError:
             hello = {}
-        if (hello.get("audio_params") or {}).get("format") == "pcm":
+        is_device = bool(request.headers.get("Device-Id"))
+        if not is_device and (hello.get("audio_params") or {}).get("format") == "pcm":
             await h5_handler(adapter)
         else:
             await handle_device_connection(adapter)
