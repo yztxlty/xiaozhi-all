@@ -463,6 +463,10 @@ async def _asr_then_pipeline(
                 had_preemptive_result = preemptive.submitted
                 await send_json({"type": "assistant.emotion", "emotion": extract_emotion(final_text)})
                 await preemptive.finalize(final_text)
+                if auto_commit_on_final and not preemptive.submitted:
+                    # 设备端 ASR 可能先给出最终句子、再迟迟不结束云端流；
+                    # 不能让设备等待 ASR 清理完成才进入 LLM/TTS。
+                    await preemptive.commit()
                 if had_preemptive_result:
                     logger.info("[asr_pipeline] 最终识别已校验提前生成")
                 elif audio_committed.is_set():

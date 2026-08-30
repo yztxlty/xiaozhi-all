@@ -151,6 +151,7 @@ async def test_final_asr_is_submitted_before_provider_cleanup_finishes(monkeypat
             capture,
             FakeRuntime(),
             asyncio.Event(),
+            auto_commit_on_final=True,
         )
     )
     try:
@@ -205,6 +206,40 @@ async def test_final_asr_cancels_pending_partial_before_generation_starts(monkey
 
     await asyncio.wait_for(task, timeout=1)
     assert runtime.submissions == ["你好。"]
+
+
+@pytest.mark.asyncio
+async def test_device_final_asr_submits_without_waiting_for_asr_stream_close(monkeypatch) -> None:
+    cleanup_release = asyncio.Event()
+
+    class FakeASR:
+        async def recognize(self, _audio, _cancel):
+            yield ASRFinal("你好")
+            await cleanup_release.wait()
+
+    class FakeRuntime:
+        def __init__(self):
+            self.submissions = []
+            self.submitted = asyncio.Event()
+
+        async def submit_text(self, text):
+            self.submissions.append(text)
+            self.submitted.set()
+
+    monkeypatch.setattr(demo, "DashScopeASRProvider", FakeASR)
+    runtime = FakeRuntime()
+    task = asyncio.create_task(
+        demo._asr_then_pipeline(
+            "session", asyncio.Queue(), lambda _message: asyncio.sleep(0), runtime,
+            asyncio.Event(), auto_commit_on_final=True,
+        )
+    )
+    try:
+        await asyncio.wait_for(runtime.submitted.wait(), timeout=0.1)
+        assert runtime.submissions == ["你好"]
+    finally:
+        cleanup_release.set()
+        await task
 
 
 @pytest.mark.asyncio
