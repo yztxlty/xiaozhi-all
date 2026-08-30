@@ -1,3 +1,5 @@
+import inspect
+
 from realtime_server.device_server import is_device_path
 import realtime_server.device_server as device_server
 
@@ -26,3 +28,9 @@ def test_device_speech_boundary_accepts_quiet_voice():
     boundary = device_server.DeviceSpeechBoundary(rms_threshold=35.0)
     quiet_voice = (b"\x28\x00" * 960)
     assert not boundary.feed(quiet_voice, now=1.0)
+
+
+def test_device_audio_interrupts_a_pending_turn_without_relying_on_rms():
+    source = inspect.getsource(device_server.handle_device_connection)
+    assert "if not runtime.turn_done.is_set():" in source
+    assert "await interrupt_current_turn()" in source

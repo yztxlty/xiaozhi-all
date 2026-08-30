@@ -160,7 +160,9 @@ async def handle_device_connection(websocket: Any) -> None:
         async for message in websocket:
             if isinstance(message, bytes):
                 pcm = message if decoder is None else decoder.decode(message)
-                if speech_boundary.is_voice(pcm) and not runtime.turn_done.is_set():
+                # 设备在上一轮播报/生成未完成时发来的任意音频，都代表用户开始了新一轮输入。
+                # 不依赖 RMS：Opus 解码后的能量会因麦克风型号不同而漏判，漏判会让旧请求堵住后续轮次。
+                if not runtime.turn_done.is_set():
                     await interrupt_current_turn()
                 await start_asr()
                 if speech_boundary.is_voice(pcm):
