@@ -78,6 +78,11 @@ def should_start_device_asr(
     return asr_active or not runtime_busy or (is_voice and voice_streak >= 5)
 
 
+def should_accept_device_audio(*, now: float, accept_after: float) -> bool:
+    """TTS 完成后的短余音窗口内不重新启动 ASR。"""
+    return now >= accept_after
+
+
 async def handle_device_connection(websocket: Any) -> None:
     session_id = f"s_{uuid.uuid4().hex}"
     first = await websocket.recv()
@@ -118,6 +123,8 @@ async def handle_device_connection(websocket: Any) -> None:
     last_voice_at = time.monotonic()
     idle_prompt_task: asyncio.Task | None = None
     busy_voice_streak = 0
+    was_runtime_busy = False
+    accept_audio_after = 0.0
 
     try:
         http = httpx.AsyncClient(**_dify_http_client_options())
@@ -202,6 +209,16 @@ async def handle_device_connection(websocket: Any) -> None:
                     logger.info("[device] first audio session=%s bytes=%d", session_id[:8], len(message))
                 pcm = message if decoder is None else decoder.decode(message)
                 is_voice = speech_boundary.is_voice(pcm)
+                runtime_busy = not runtime.turn_done.is_set()
+                if was_runtime_busy and not runtime_busy:
+                    # TTS 已把最后一包发完，但设备麦克风仍可能收到扬声器余音。
+                    accept_audio_after = time.monotonic() + 1.0
+                    busy_voice_streak = 0
+                was_runtime_busy = runtime_busy
+                if not should_accept_device_audio(
+                    now=time.monotonic(), accept_after=accept_audio_after
+                ):
+                    continue
                 busy_voice_streak = busy_voice_streak + 1 if is_voice else 0
                 # 同一轮 ASR 仍在上传音频时，提前生成产生的“未完成”不能被误当成新轮次。
                 # 只有上一轮已闭合后再次检测到语音，才执行播报打断并重开 ASR。
@@ -209,12 +226,12 @@ async def handle_device_connection(websocket: Any) -> None:
                     input_closed=input_closed,
                     is_voice=is_voice,
                     asr_done=asr_task is not None and asr_task.done(),
-                    runtime_busy=not runtime.turn_done.is_set(),
+                    runtime_busy=runtime_busy,
                     voice_streak=busy_voice_streak,
                 ):
                     await interrupt_current_turn()
                 if not should_start_device_asr(
-                    runtime_busy=not runtime.turn_done.is_set(),
+                    runtime_busy=runtime_busy,
                     is_voice=is_voice,
                     asr_active=asr_task is not None and not asr_task.done(),
                     voice_streak=busy_voice_streak,

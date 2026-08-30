@@ -5,6 +5,7 @@ from realtime_server.device_server import (
     _new_device_audio_queue,
     is_device_path,
     should_interrupt_device_turn,
+    should_accept_device_audio,
     should_start_device_asr,
 )
 
@@ -66,6 +67,11 @@ def test_tts_ignores_short_echo_burst_but_allows_sustained_barge_in():
         input_closed=True, is_voice=True, asr_done=True, runtime_busy=True,
         voice_streak=5,
     )
+
+
+def test_tts_completion_grace_drops_playback_tail_before_new_asr():
+    assert not should_accept_device_audio(now=10.9, accept_after=11.0)
+    assert should_accept_device_audio(now=11.0, accept_after=11.0)
 
 
 def test_tts_does_not_start_asr_for_continuous_non_voice_audio():
