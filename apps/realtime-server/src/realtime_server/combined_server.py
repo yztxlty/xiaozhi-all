@@ -70,13 +70,16 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
         await websocket.close(code=1002, message="首帧缺失".encode())
         return websocket
     adapter = _PrefetchedWebSocketAdapter(websocket, request, first)
-    if request.path == "/xiaozhi/v1/ws":
+    # 设备请求必须优先按固件握手头分流；反向代理位于 /chat/ 子路径时，
+    # aiohttp 可能仍看到带前缀的路径，不能只依赖 request.path。
+    if request.headers.get("Device-Id"):
+        await handle_device_connection(adapter)
+    elif request.path == "/xiaozhi/v1/ws":
         try:
             hello = json.loads(first) if isinstance(first, str) else {}
         except json.JSONDecodeError:
             hello = {}
-        is_device = bool(request.headers.get("Device-Id"))
-        if not is_device and (hello.get("audio_params") or {}).get("format") == "pcm":
+        if (hello.get("audio_params") or {}).get("format") == "pcm":
             await h5_handler(adapter)
         else:
             await handle_device_connection(adapter)

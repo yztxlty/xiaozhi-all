@@ -11,6 +11,7 @@ from pipecat.frames.frames import (
     InterruptionFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
     LLMTextFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
@@ -66,6 +67,7 @@ class DifyPipecatLLM(FrameProcessor):
         self, request: LLMRequest, direction: FrameDirection, cancel_event: asyncio.Event
     ) -> None:
         try:
+            await self.push_frame(LLMFullResponseStartFrame(), direction)
             async for event in self._provider.stream(request, cancel_event):
                 if isinstance(event, LLMTextDelta):
                     await self.push_frame(LLMTextFrame(event.text), direction)

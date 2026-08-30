@@ -19,5 +19,6 @@ def test_combined_source_routes_pcm_h5_handshake_and_opus_device_handshake_separ
     code = inspect.getsource(create_app.__globals__["_websocket_route"])
     assert 'audio_params' in code
     assert 'Device-Id' in code
+    assert 'if request.headers.get("Device-Id"):' in code
     assert 'h5_handler(adapter)' in code
     assert 'handle_device_connection(adapter)' in code

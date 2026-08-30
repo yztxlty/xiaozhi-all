@@ -1,6 +1,12 @@
 from model_router.core.contracts import LLMCompleted, LLMTextDelta
 from voice_session.infrastructure.pipecat.dify_llm import DifyPipecatLLM
-from pipecat.frames.frames import InterruptionFrame, LLMContextFrame, LLMFullResponseEndFrame, LLMTextFrame
+from pipecat.frames.frames import (
+    InterruptionFrame,
+    LLMContextFrame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMTextFrame,
+)
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.frame_processor import FrameDirection
 import asyncio
@@ -27,6 +33,7 @@ async def test_dify_adapter_emits_pipecat_text_frames():
     )
     await asyncio.sleep(0)
     assert any(isinstance(frame, LLMTextFrame) and frame.text == "你好" for frame in output)
+    assert any(isinstance(frame, LLMFullResponseStartFrame) for frame in output)
     assert any(isinstance(frame, LLMFullResponseEndFrame) for frame in output)
 
 
