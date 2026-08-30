@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from aiohttp import web
@@ -9,6 +10,8 @@ from aiohttp import web
 from .demo import _H5_ASSETS, _H5_ROOT, handler as h5_handler
 from .device_server import handle_device_connection
 from .ota_server import build_ota_response
+
+logger = logging.getLogger("xiaozhi_combined_server")
 
 
 class _WebSocketAdapter:
@@ -70,9 +73,16 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
         await websocket.close(code=1002, message="首帧缺失".encode())
         return websocket
     adapter = _PrefetchedWebSocketAdapter(websocket, request, first)
+    hello_audio_format = "unknown"
+    if isinstance(first, str):
+        try:
+            hello_audio_format = str((json.loads(first).get("audio_params") or {}).get("format", "unknown"))
+        except json.JSONDecodeError:
+            pass
     # 设备请求必须优先按固件握手头分流；反向代理位于 /chat/ 子路径时，
     # aiohttp 可能仍看到带前缀的路径，不能只依赖 request.path。
     if request.headers.get("Device-Id"):
+        logger.info("[ws_route] device path=%s header_device=1 format=%s", request.path, hello_audio_format)
         await handle_device_connection(adapter)
     elif request.path == "/xiaozhi/v1/ws" or request.path.endswith("/xiaozhi/v1/ws"):
         try:
@@ -80,10 +90,13 @@ async def _websocket_route(request: web.Request) -> web.StreamResponse:
         except json.JSONDecodeError:
             hello = {}
         if (hello.get("audio_params") or {}).get("format") == "pcm":
+            logger.info("[ws_route] h5 path=%s header_device=0 format=pcm", request.path)
             await h5_handler(adapter)
         else:
+            logger.info("[ws_route] device path=%s header_device=0 format=%s", request.path, hello_audio_format)
             await handle_device_connection(adapter)
     else:
+        logger.info("[ws_route] h5 path=%s header_device=0 format=%s", request.path, hello_audio_format)
         await h5_handler(adapter)
     return websocket
 

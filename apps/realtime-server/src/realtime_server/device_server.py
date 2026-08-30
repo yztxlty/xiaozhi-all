@@ -76,6 +76,12 @@ async def handle_device_connection(websocket: Any) -> None:
             return
 
     handshake = parse_hello(payload)
+    headers = getattr(getattr(websocket, "request", None), "headers", {})
+    logger.info(
+        "[device] hello session=%s input=%s output=%s device_header=%s",
+        session_id[:8], handshake.device_profile.input_audio.codec,
+        handshake.device_profile.output_audio.codec, bool(headers.get("Device-Id")),
+    )
     protocol = DeviceProtocolV1(websocket, session_id, handshake.device_profile)
     await protocol.send_hello()
     http: httpx.AsyncClient | None = None
@@ -98,6 +104,7 @@ async def handle_device_connection(websocket: Any) -> None:
         await runtime.start()
         decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
         audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=32)
+        binary_frames = 0
 
         async def start_asr() -> None:
             nonlocal asr_task, cancel, audio_queue, decoder, input_closed, last_voice_at
@@ -159,6 +166,9 @@ async def handle_device_connection(websocket: Any) -> None:
 
         async for message in websocket:
             if isinstance(message, bytes):
+                binary_frames += 1
+                if binary_frames == 1:
+                    logger.info("[device] first audio session=%s bytes=%d", session_id[:8], len(message))
                 pcm = message if decoder is None else decoder.decode(message)
                 is_voice = speech_boundary.is_voice(pcm)
                 # 设备在上一轮播报/生成未完成时发来的任意音频，都代表用户开始了新一轮输入。
