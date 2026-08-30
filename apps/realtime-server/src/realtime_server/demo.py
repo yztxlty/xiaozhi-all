@@ -396,6 +396,7 @@ async def _asr_then_pipeline(
     cancel: asyncio.Event,
     *,
     auto_commit_on_final: bool = False,
+    preemptive_delay_seconds: float | None = None,
 ) -> None:
     logger.info("[asr_pipeline] 开始 session=%s", session_id[:8])
     dump_mic = os.getenv("DEBUG_DUMP_MIC") == "1"
@@ -405,7 +406,11 @@ async def _asr_then_pipeline(
     # 若最终结果仍未到达，再复用 LiveKit Agents 的预生成/取消语义。
     preemptive = PreemptiveGenerationCoordinator(
         runtime,
-        stability_delay_seconds=float(os.getenv("ASR_FINAL_GRACE_SECONDS", "0.28")),
+        stability_delay_seconds=(
+            float(os.getenv("ASR_FINAL_GRACE_SECONDS", "0.28"))
+            if preemptive_delay_seconds is None
+            else preemptive_delay_seconds
+        ),
     )
 
     async def _audio_gen():

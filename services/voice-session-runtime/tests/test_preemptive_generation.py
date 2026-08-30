@@ -15,6 +15,25 @@ class RecordingRuntime:
 
 
 @pytest.mark.asyncio
+async def test_partial_transcript_starts_generation_before_audio_commit() -> None:
+    runtime = RecordingRuntime()
+    coordinator = PreemptiveGenerationCoordinator(runtime, stability_delay_seconds=0)
+
+    await coordinator.update_partial("今天天气怎么样")
+    await coordinator.wait_preemptive()
+
+    assert runtime.calls == [("submit", "今天天气怎么样")]
+
+
+def test_default_preemptive_delay_can_be_overridden_for_device_path() -> None:
+    coordinator = PreemptiveGenerationCoordinator(
+        RecordingRuntime(), stability_delay_seconds=0.08
+    )
+
+    assert coordinator._stability_delay_seconds == 0.08
+
+
+@pytest.mark.asyncio
 async def test_final_transcript_before_commit_waits_for_user_endpoint() -> None:
     runtime = RecordingRuntime()
     coordinator = PreemptiveGenerationCoordinator(runtime, stability_delay_seconds=0)

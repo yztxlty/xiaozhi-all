@@ -124,10 +124,11 @@ async def handle_device_connection(websocket: Any) -> None:
                     session_id,
                     audio_queue,
                     output.json,
-                    runtime,
-                    cancel,
-                    auto_commit_on_final=True,
-                )
+                runtime,
+                cancel,
+                auto_commit_on_final=True,
+                preemptive_delay_seconds=0.08,
+            )
             )
 
         async def interrupt_current_turn() -> None:
@@ -187,6 +188,7 @@ async def handle_device_connection(websocket: Any) -> None:
                 await audio_queue.put(pcm)
                 if speech_boundary.feed(pcm):
                     input_closed = True
+                    logger.info("[device] audio endpoint session=%s", session_id[:8])
                     await audio_queue.put(None)
                 continue
             control = await protocol.parse(message)
