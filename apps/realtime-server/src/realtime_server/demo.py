@@ -167,7 +167,9 @@ def _build_llm_provider(http: httpx.AsyncClient) -> LLMProvider | None:
     raise ValueError(f"不支持的 LLM_PROVIDER: {provider_name}")
 
 
-def _build_pipecat_processors(_http: httpx.AsyncClient | None) -> list[FrameProcessor]:
+def _build_pipecat_processors(
+    _http: httpx.AsyncClient | None, *, device_mode: bool = False
+) -> list[FrameProcessor]:
     """构造实时主链路；模型服务直接复用 Pipecat 官方实现。"""
     provider_name = os.getenv("LLM_PROVIDER", "dify").strip().lower()
     if provider_name == "dify":
@@ -177,7 +179,10 @@ def _build_pipecat_processors(_http: httpx.AsyncClient | None) -> list[FrameProc
         if _http is None:
             raise RuntimeError("Dify Pipecat 适配器需要共享 httpx.AsyncClient")
         provider = DifyChatflowProvider(settings, DifyChatflowClient(settings, _http))
-        llm = DifyPipecatLLM(provider)
+        llm = DifyPipecatLLM(
+            provider,
+            fallback_text="网络有点慢，我再听你说一次。" if device_mode else None,
+        )
     elif provider_name == "qwen":
         api_key = os.getenv("DASHSCOPE_API_KEY")
         if not api_key:

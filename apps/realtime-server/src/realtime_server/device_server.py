@@ -89,7 +89,7 @@ async def handle_device_connection(websocket: Any) -> None:
 
     try:
         http = httpx.AsyncClient(**_dify_http_client_options())
-        processors = _build_pipecat_processors(http)
+        processors = _build_pipecat_processors(http, device_mode=True)
         output = DeviceOutputAdapter(protocol, handshake.device_profile)
         runtime = PipecatVoiceRuntime(processors, output.json, output.pcm)
         # Do not block the device receive loop on optional provider warmup.

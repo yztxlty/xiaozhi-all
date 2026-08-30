@@ -5,7 +5,7 @@ import uuid
 from contextlib import suppress
 from typing import Any
 
-from model_router.core.contracts import LLMRequest, LLMTextDelta
+from model_router.core.contracts import LLMFailed, LLMRequest, LLMTextDelta
 from pipecat.frames.frames import (
     Frame,
     InterruptionFrame,
@@ -20,9 +20,10 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 class DifyPipecatLLM(FrameProcessor):
     """将现有 Dify Provider 的增量事件转换为 Pipecat 文本帧。"""
 
-    def __init__(self, provider: Any) -> None:
+    def __init__(self, provider: Any, *, fallback_text: str | None = None) -> None:
         super().__init__()
         self._provider = provider
+        self._fallback_text = fallback_text
         self._stream_task: asyncio.Task | None = None
         self._cancel_event: asyncio.Event | None = None
 
@@ -71,6 +72,8 @@ class DifyPipecatLLM(FrameProcessor):
             async for event in self._provider.stream(request, cancel_event):
                 if isinstance(event, LLMTextDelta):
                     await self.push_frame(LLMTextFrame(event.text), direction)
+                elif isinstance(event, LLMFailed) and self._fallback_text:
+                    await self.push_frame(LLMTextFrame(self._fallback_text), direction)
             await self.push_frame(LLMFullResponseEndFrame(), direction)
         except asyncio.CancelledError:
             cancel_event.set()
