@@ -10,6 +10,7 @@ import logging
 import os
 import ssl
 import struct
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 
@@ -63,6 +64,8 @@ _EVENT_NAMES = {
     151: "SessionCanceled", 152: "SessionFinished", 153: "SessionFailed",
     200: "TaskRequest", 350: "TTSSentenceStart", 351: "TTSSentenceEnd", 352: "TTSResponse",
 }
+
+_TTS_CONNECTION_MAX_AGE_SECONDS = 45.0
 
 
 def _header(msg_type: int, flag: int, serial: int = NO_SERIALIZATION) -> bytes:
@@ -220,6 +223,7 @@ class VolcengineTTSProvider:
         self._audio_queue: asyncio.Queue = asyncio.Queue()
         self._audio_sink: Callable[[bytes], Awaitable[None]] | None = None
         self._active_session_id: str | None = None
+        self._connection_started_at: float | None = None
 
     def set_audio_sink(self, sink: Callable[[bytes], Awaitable[None]] | None) -> None:
         """设置实时音频下游；Pipecat 用它直接接收双流 TTS 音频。"""
@@ -255,7 +259,12 @@ class VolcengineTTSProvider:
 
     async def _ensure_connection(self) -> None:
         async with self._connect_lock:
-            if self._ws is not None and self._receiver_task is not None and not self._receiver_task.done():
+            if (
+                self._ws is not None
+                and self._receiver_task is not None
+                and not self._receiver_task.done()
+                and not self._connection_needs_rotation()
+            ):
                 return
             await self._close_socket()
             self._ws = await websockets.connect(self._params["url"], **self._connect_kwargs())
@@ -271,7 +280,12 @@ class VolcengineTTSProvider:
                 await self._close_socket()
                 raise RuntimeError(f"TTS: 建连失败 event={event}")
             self._receiver_task = asyncio.create_task(self._receive_loop())
+            self._connection_started_at = time.monotonic()
             logger.info("[TTS] 持久 WebSocket 已建立")
+
+    def _connection_needs_rotation(self, now: float | None = None) -> bool:
+        started_at = self._connection_started_at
+        return started_at is not None and (time.monotonic() if now is None else now) - started_at >= _TTS_CONNECTION_MAX_AGE_SECONDS
 
     def _wait_for_event(self, event: int, session_id: str | None = None) -> asyncio.Future:
         future = asyncio.get_running_loop().create_future()
@@ -438,6 +452,7 @@ class VolcengineTTSProvider:
                 pass
         ws = self._ws
         self._ws = None
+        self._connection_started_at = None
         if ws is not None:
             try:
                 await ws.close()

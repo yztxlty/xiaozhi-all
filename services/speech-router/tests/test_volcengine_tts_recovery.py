@@ -92,3 +92,11 @@ async def test_cancel_waits_for_matching_service_confirmation(monkeypatch) -> No
     provider._resolve_event(providers.EVENT_SessionCanceled, "current-session")
     await cancellation
     assert provider._active_session_id is None
+
+
+def test_persistent_connection_rotates_before_provider_expiry() -> None:
+    provider = providers.VolcengineTTSProvider()
+    provider._connection_started_at = 100.0
+
+    assert provider._connection_needs_rotation(now=149.0)
+    assert not provider._connection_needs_rotation(now=140.0)
