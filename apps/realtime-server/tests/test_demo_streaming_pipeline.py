@@ -9,7 +9,6 @@ from pipecat.services.qwen.llm import QwenLLMService
 from realtime_server import demo
 from speech_router.core.asr_contracts import ASRFinal, ASRPartial
 from voice_session.infrastructure.pipecat.volcengine_tts import PipecatVolcengineTTSService
-from voice_session.infrastructure.pipecat.hedged_qwen import HedgedQwenLLMService
 
 
 def test_extract_emotion_returns_whitelist_and_safe_fallback() -> None:
@@ -90,48 +89,9 @@ def test_realtime_path_uses_official_pipecat_qwen_service(monkeypatch) -> None:
 
     processors = demo._build_pipecat_processors(None)
 
-    assert isinstance(processors[0], HedgedQwenLLMService)
+    assert isinstance(processors[0], QwenLLMService)
     assert processors[0]._settings.model == "qwen3.7-flash"
     assert isinstance(processors[1], PipecatVolcengineTTSService)
-
-
-@pytest.mark.asyncio
-async def test_qwen_hedge_keeps_fast_primary_without_duplicate(monkeypatch) -> None:
-    calls = []
-
-    async def fake_request(_service, _context):
-        calls.append(len(calls) + 1)
-        return f"stream-{calls[-1]}"
-
-    monkeypatch.setattr(QwenLLMService, "get_chat_completions", fake_request)
-    service = HedgedQwenLLMService(api_key="test", hedge_delay_seconds=0.05)
-
-    assert await service.get_chat_completions(object()) == "stream-1"
-    assert calls == [1]
-
-
-@pytest.mark.asyncio
-async def test_qwen_hedge_uses_faster_secondary_when_primary_has_long_tail(monkeypatch) -> None:
-    calls = 0
-    primary_cancelled = asyncio.Event()
-
-    async def fake_request(_service, _context):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            try:
-                await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                primary_cancelled.set()
-                raise
-        return "secondary-stream"
-
-    monkeypatch.setattr(QwenLLMService, "get_chat_completions", fake_request)
-    service = HedgedQwenLLMService(api_key="test", hedge_delay_seconds=0.01)
-
-    assert await service.get_chat_completions(object()) == "secondary-stream"
-    await asyncio.wait_for(primary_cancelled.wait(), timeout=0.1)
-    assert calls == 2
 
 
 @pytest.mark.asyncio

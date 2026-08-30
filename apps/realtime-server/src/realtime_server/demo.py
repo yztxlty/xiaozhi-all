@@ -69,7 +69,6 @@ from voice_session.infrastructure.pipecat.runtime import PipecatVoiceRuntime
 from voice_session.infrastructure.pipecat.dify_llm import DifyPipecatLLM
 from voice_session.infrastructure.pipecat.volcengine_tts import PipecatVolcengineTTSService
 from voice_session.application.preemptive_generation import PreemptiveGenerationCoordinator
-from voice_session.infrastructure.pipecat.hedged_qwen import HedgedQwenLLMService
 
 logger = logging.getLogger("xiaozhi_demo")
 
@@ -183,9 +182,8 @@ def _build_pipecat_processors(_http: httpx.AsyncClient | None) -> list[FrameProc
         api_key = os.getenv("DASHSCOPE_API_KEY")
         if not api_key:
             raise RuntimeError("DASHSCOPE_API_KEY 未配置")
-        llm = HedgedQwenLLMService(
+        llm = QwenLLMService(
             api_key=api_key,
-            hedge_delay_seconds=float(os.getenv("QWEN_HEDGE_DELAY_SECONDS", "0.28")),
             base_url=os.getenv(
                 "QWEN_BASE_URL",
                 "https://dashscope.aliyuncs.com/compatible-mode/v1",
