@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import asyncio
 from typing import Any
 
 from audio_codec import DeviceOpusOutput, DevicePcmOutput
@@ -12,6 +13,7 @@ class DeviceOutputAdapter:
         self._protocol = protocol
         self._started = False
         self._text_buffer = ""
+        self._audio_lock = asyncio.Lock()
         self._output = (
             DeviceOpusOutput(self._protocol.send_audio, profile.output_audio)
             if profile.output_audio.codec == "opus"
@@ -35,19 +37,21 @@ class DeviceOutputAdapter:
                 if sentence:
                     await self._protocol.send_tts_sentence(sentence)
         elif message_type in {"tts.done", "tts.stop"}:
-            if self._started:
-                await self._output.finish()
-                await self._protocol.send_tts_stop()
-                self._started = False
-            self._text_buffer = ""
+            async with self._audio_lock:
+                if self._started:
+                    await self._output.finish()
+                    await self._protocol.send_tts_stop()
+                    self._started = False
+                self._text_buffer = ""
         elif message_type == "device.standby":
             await self._protocol.send_standby()
 
     async def pcm(self, payload: bytes) -> None:
-        if not self._started:
-            if self._text_buffer.strip():
-                await self._protocol.send_tts_sentence(self._text_buffer.strip())
-                self._text_buffer = ""
-            await self._protocol.send_tts_start()
-            self._started = True
-        await self._output.write(payload)
+        async with self._audio_lock:
+            if not self._started:
+                if self._text_buffer.strip():
+                    await self._protocol.send_tts_sentence(self._text_buffer.strip())
+                    self._text_buffer = ""
+                await self._protocol.send_tts_start()
+                self._started = True
+            await self._output.write(payload)
