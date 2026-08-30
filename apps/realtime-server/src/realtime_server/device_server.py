@@ -60,15 +60,22 @@ def is_device_path(path: str) -> bool:
 
 
 def should_interrupt_device_turn(
-    *, input_closed: bool, is_voice: bool, asr_done: bool, runtime_busy: bool
+    *, input_closed: bool, is_voice: bool, asr_done: bool, runtime_busy: bool,
+    voice_streak: int = 5,
 ) -> bool:
     """新语音只打断已闭合或已完成识别但仍在播报的旧轮次。"""
-    return is_voice and (input_closed or (asr_done and runtime_busy))
+    if not is_voice:
+        return False
+    if runtime_busy and voice_streak < 5:
+        return False
+    return input_closed or (asr_done and runtime_busy)
 
 
-def should_start_device_asr(*, runtime_busy: bool, is_voice: bool, asr_active: bool) -> bool:
+def should_start_device_asr(
+    *, runtime_busy: bool, is_voice: bool, asr_active: bool, voice_streak: int = 5
+) -> bool:
     """TTS 播报期间只在检测到新语音时开启下一轮 ASR。"""
-    return asr_active or not runtime_busy or is_voice
+    return asr_active or not runtime_busy or (is_voice and voice_streak >= 5)
 
 
 async def handle_device_connection(websocket: Any) -> None:
@@ -110,6 +117,7 @@ async def handle_device_connection(websocket: Any) -> None:
     input_closed = False
     last_voice_at = time.monotonic()
     idle_prompt_task: asyncio.Task | None = None
+    busy_voice_streak = 0
 
     try:
         http = httpx.AsyncClient(**_dify_http_client_options())
@@ -127,7 +135,7 @@ async def handle_device_connection(websocket: Any) -> None:
         binary_frames = 0
 
         async def start_asr() -> None:
-            nonlocal asr_task, cancel, audio_queue, decoder, input_closed, last_voice_at
+            nonlocal asr_task, cancel, audio_queue, decoder, input_closed, last_voice_at, busy_voice_streak
             if asr_task is not None and not asr_task.done():
                 return
             cancel = asyncio.Event()
@@ -136,6 +144,7 @@ async def handle_device_connection(websocket: Any) -> None:
             speech_boundary.reset()
             input_closed = False
             last_voice_at = time.monotonic()
+            busy_voice_streak = 0
             asr_task = asyncio.create_task(
                 _asr_then_pipeline(
                     session_id,
@@ -149,7 +158,7 @@ async def handle_device_connection(websocket: Any) -> None:
             )
 
         async def interrupt_current_turn() -> None:
-            nonlocal asr_task, audio_queue, decoder, input_closed
+            nonlocal asr_task, audio_queue, decoder, input_closed, busy_voice_streak
             cancel.set()
             await runtime.interrupt()
             if asr_task is not None and not asr_task.done():
@@ -160,6 +169,7 @@ async def handle_device_connection(websocket: Any) -> None:
             decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
             speech_boundary.reset()
             input_closed = False
+            busy_voice_streak = 0
 
         async def idle_prompt_loop() -> None:
             nonlocal asr_task, audio_queue, decoder, input_closed, last_voice_at
@@ -192,6 +202,7 @@ async def handle_device_connection(websocket: Any) -> None:
                     logger.info("[device] first audio session=%s bytes=%d", session_id[:8], len(message))
                 pcm = message if decoder is None else decoder.decode(message)
                 is_voice = speech_boundary.is_voice(pcm)
+                busy_voice_streak = busy_voice_streak + 1 if is_voice else 0
                 # 同一轮 ASR 仍在上传音频时，提前生成产生的“未完成”不能被误当成新轮次。
                 # 只有上一轮已闭合后再次检测到语音，才执行播报打断并重开 ASR。
                 if should_interrupt_device_turn(
@@ -199,12 +210,14 @@ async def handle_device_connection(websocket: Any) -> None:
                     is_voice=is_voice,
                     asr_done=asr_task is not None and asr_task.done(),
                     runtime_busy=not runtime.turn_done.is_set(),
+                    voice_streak=busy_voice_streak,
                 ):
                     await interrupt_current_turn()
                 if not should_start_device_asr(
                     runtime_busy=not runtime.turn_done.is_set(),
                     is_voice=is_voice,
                     asr_active=asr_task is not None and not asr_task.done(),
+                    voice_streak=busy_voice_streak,
                 ):
                     continue
                 await start_asr()
