@@ -221,7 +221,13 @@ def _build_pipecat_processors(
     else:
         raise RuntimeError(f"Pipecat 实时主链路暂不支持 LLM_PROVIDER={provider_name}")
 
-    tts = PipecatVolcengineTTSService(provider=VolcengineTTSProvider())
+    # ESP32 固件协商的播放格式是 24kHz Opus；设备线路直接使用 24kHz TTS，
+    # 避免服务端再做一次 16kHz -> 24kHz 重采样。H5 保持既有 16kHz 契约。
+    tts_sample_rate = 24000 if device_mode else 16000
+    tts = PipecatVolcengineTTSService(
+        provider=VolcengineTTSProvider({"sample_rate": tts_sample_rate}),
+        sample_rate=tts_sample_rate,
+    )
     return [llm, tts]
 
 

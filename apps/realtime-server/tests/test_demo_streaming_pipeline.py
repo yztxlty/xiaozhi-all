@@ -78,6 +78,19 @@ def test_realtime_path_uses_official_pipecat_deepseek_service(monkeypatch) -> No
     assert isinstance(processors[1], PipecatVolcengineTTSService)
 
 
+def test_device_path_uses_native_24khz_tts_without_changing_h5(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "deepseek")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_BASE_URL", "https://api.deepseek.com")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "test-secret")
+
+    h5_processors = demo._build_pipecat_processors(None)
+    device_processors = demo._build_pipecat_processors(None, device_mode=True)
+
+    assert h5_processors[1]._output_sample_rate == 16000
+    assert device_processors[1]._output_sample_rate == 24000
+    assert device_processors[1]._provider._params["sample_rate"] == 24000
+
+
 def test_realtime_path_uses_official_pipecat_qwen_service(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "qwen")
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret")

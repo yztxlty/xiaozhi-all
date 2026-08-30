@@ -86,6 +86,7 @@ async def handle_device_connection(websocket: Any) -> None:
     await protocol.send_hello()
     http: httpx.AsyncClient | None = None
     runtime: PipecatVoiceRuntime | None = None
+    warmup_task: asyncio.Task | None = None
     asr_task: asyncio.Task | None = None
     cancel = asyncio.Event()
     speech_boundary = DeviceSpeechBoundary()
@@ -102,6 +103,8 @@ async def handle_device_connection(websocket: Any) -> None:
         # A device can start sending audio immediately after hello; provider
         # connections are created lazily by the first real turn.
         await runtime.start()
+        # 后台预热不阻塞设备首帧收音，并尽量让首轮复用已建立的 TTS 连接。
+        warmup_task = asyncio.create_task(_warmup_pipecat_processors(processors))
         decoder = DeviceOpusInput() if handshake.device_profile.input_audio.codec == "opus" else None
         audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=32)
         binary_frames = 0
@@ -200,6 +203,9 @@ async def handle_device_connection(websocket: Any) -> None:
         if idle_prompt_task is not None:
             idle_prompt_task.cancel()
             await asyncio.gather(idle_prompt_task, return_exceptions=True)
+        if warmup_task is not None:
+            warmup_task.cancel()
+            await asyncio.gather(warmup_task, return_exceptions=True)
         cancel.set()
         if asr_task is not None:
             if not asr_task.done():
