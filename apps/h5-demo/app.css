@@ -12,6 +12,11 @@
 @media (max-width: 720px){.app-shell{width:100%}.chat-header{height:78px;padding-left:16px;padding-right:16px}.messages{padding:20px 16px 158px}.chat-composer{padding-left:13px;padding-right:13px}.call-stage{padding-top:8px}.mascot{width:min(53vw,220px)}.debug-drawer{top:auto;right:0;bottom:0;width:100%;height:min(72dvh,620px);border-radius:24px 24px 0 0;transform:translateY(105%)}.debug-drawer.is-open{transform:translateY(0)}.debug-drawer>header:before{content:"";position:absolute;top:8px;left:50%;width:40px;height:4px;margin-left:-20px;border-radius:4px;background:rgba(255,255,255,.24)}}
 @media (max-height:690px){.mascot{width:min(34vh,190px)}.call-stage{padding-top:0}.live-transcript{min-height:52px}.call-controls{padding-top:8px}}
 
+/* 对话增量更新不得改变舞台高度，避免文字和计时信息上下抖动。 */
+.live-transcript{height:72px!important;min-height:72px!important;flex:0 0 72px;overflow:hidden}
+.live-transcript p{height:31px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.latency-card{min-height:54px;box-sizing:border-box}
+
 /* 幽光角色：高清底图和同尺寸透明表情图层严格共用一个锚点。 */
 #mascot.mascot{position:relative;width:min(48vw,250px);height:min(48vw,250px);display:block;filter:drop-shadow(0 22px 30px rgba(48,25,101,.22));}
 .mascot-image,.mascot-expression{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;}

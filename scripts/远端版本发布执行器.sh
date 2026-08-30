@@ -21,6 +21,7 @@ CURRENT_LINK="${REMOTE_BASE}/current"
 CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${RELEASE_ID}"
 BACKUP_NAME="${CONTAINER_NAME}-backup-${RELEASE_ID}"
 REMOTE_RUNNER_PATH="$0"
+THIRD_PARTY_CACHE_DIR="${REMOTE_BASE}/shared/third-party-cache/h5-voice"
 ROLLBACK_ARMED=0
 PREVIOUS_LINK=""
 OLD_CONTAINER_PRESENT=0
@@ -131,6 +132,11 @@ prepare_release() {
   mkdir "${RELEASE_DIR}"
   tar -xzf "${ARCHIVE_PATH}" -C "${RELEASE_DIR}"
   [[ -f "${RELEASE_DIR}/Dockerfile" ]] || fail "版本目录缺少 Dockerfile"
+  [[ -d "${THIRD_PARTY_CACHE_DIR}" ]] || fail "85 第三方资源缓存不存在：${THIRD_PARTY_CACHE_DIR}"
+  mkdir -p "${RELEASE_DIR}/third-party-cache"
+  cp -Rp "${THIRD_PARTY_CACHE_DIR}/." "${RELEASE_DIR}/third-party-cache/"
+  find "${RELEASE_DIR}/third-party-cache" -type f -not -name '.DS_Store' -print -quit | grep -q . \
+    || fail "85 第三方资源缓存为空"
 
   # 正常解析全部传递依赖，不允许使用 --no-deps。
   if grep -Fq -- '--no-deps' "${RELEASE_DIR}/Dockerfile"; then
@@ -223,16 +229,22 @@ switch_container() {
 
 verify_local_service() {
   local base="http://127.0.0.1:18766"
+  local page_file="/tmp/xiaozhi-all-local-page-${RELEASE_ID}.html"
+  local app_file="/tmp/xiaozhi-all-local-app-${RELEASE_ID}.js"
+  local css_file="/tmp/xiaozhi-all-local-style-${RELEASE_ID}.css"
   local wasm_headers="/tmp/xiaozhi-all-local-wasm-${RELEASE_ID}.headers"
-  curl -fsS --max-time 10 "${base}/" | grep -Fq '幽光 AI'
-  curl -fsS --max-time 10 "${base}/app.js" | grep -Fq 'WebSocket'
+  curl -fsS --max-time 10 "${base}/" -o "${page_file}"
+  curl -fsS --max-time 10 "${base}/app.js" -o "${app_file}"
+  curl -fsS --max-time 10 "${base}/app.css" -o "${css_file}"
+  grep -Fq '幽光 AI' "${page_file}"
+  grep -Fq 'WebSocket' "${app_file}"
   curl -fsS --max-time 10 "${base}/call-core.js" | grep -Fq 'buildWebSocketUrl'
-  curl -fsS --max-time 10 "${base}/app.css" | grep -Fq '.app-shell'
+  grep -Fq '.app-shell' "${css_file}"
   curl -fsS --max-time 15 "${base}/vendor/voice/silero_vad_v5.onnx" -o /dev/null
   curl -fsS --compressed --max-time 30 -D "${wasm_headers}" \
     "${base}/vendor/voice/ort-wasm-simd-threaded.wasm" -o /dev/null
   grep -Fiq 'Content-Encoding: gzip' "${wasm_headers}"
-  rm -f "${wasm_headers}"
+  rm -f "${page_file}" "${app_file}" "${css_file}" "${wasm_headers}"
   echo "宿主回环地址的页面、JavaScript 和 CSS 验收通过"
 }
 
@@ -313,11 +325,11 @@ verify_public_service() {
   grep -Fq '.app-shell' "${css_file}"
   grep -Fq 'youguang-base.png' "${mascot_file}"
   grep -Fq 'assistant.emotion' "${mascot_controller_file}"
-  curl -fsS --max-time 15 "${PUBLIC_PREFIX}assets/mascot/youguang-base.png" -o /dev/null
+  curl --retry 4 --retry-delay 2 -fsS --max-time 60 "${PUBLIC_PREFIX}assets/mascot/youguang-base.png" -o /dev/null
   local mascot_state mascot_index
   for mascot_state in neutral listening speaking laughing crying shy surprised sad; do
     for mascot_index in 1 2 3; do
-      curl -fsS --max-time 15 \
+      curl --retry 4 --retry-delay 2 -fsS --max-time 60 \
         "${PUBLIC_PREFIX}assets/mascot/layers/${mascot_state}-${mascot_index}.png" -o /dev/null
     done
   done

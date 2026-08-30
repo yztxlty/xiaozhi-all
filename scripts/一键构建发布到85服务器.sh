@@ -31,6 +31,8 @@ CODE_ONLY_RELEASE="${CODE_ONLY_RELEASE:-1}"
 RETAIN_RELEASE_COUNT="${RETAIN_RELEASE_COUNT:-3}"
 H5_CHAT_PREFIX="${H5_CHAT_PREFIX:-/chat/}"
 H5_WEBSOCKET_ROUTE="${H5_WEBSOCKET_ROUTE:-/xiaozhi/v1/ws}"
+LOCAL_THIRD_PARTY_CACHE="${XIAOZHI_ALL_THIRD_PARTY_CACHE:-${PROJECT_ROOT}/.third-party-cache/h5-voice}"
+REMOTE_THIRD_PARTY_CACHE="${REMOTE_BASE}/shared/third-party-cache/h5-voice"
 LIBOPUS_VERSION="1.5.2-2"
 LIBOPUS_SHA256="794056db33d71b2ac4bd8b5a4eb23b627bcb8a49d123c33b6e841a996253a067"
 
@@ -130,6 +132,17 @@ PY
   echo "本地预检通过：项目结构、命令和符号链接均符合要求"
 }
 
+prepare_local_third_party_cache() {
+  local source_dir="${PROJECT_ROOT}/apps/h5-demo/vendor/voice"
+  [[ -d "${source_dir}" ]] || fail "缺少 H5 第三方语音资源目录：${source_dir}"
+  mkdir -p "${LOCAL_THIRD_PARTY_CACHE}"
+  rsync -a --delete --exclude='.DS_Store' "${source_dir}/" "${LOCAL_THIRD_PARTY_CACHE}/" 2>/dev/null \
+    || cp -Rp "${source_dir}/." "${LOCAL_THIRD_PARTY_CACHE}/"
+  find "${LOCAL_THIRD_PARTY_CACHE}" -type f -not -name '.DS_Store' -print -quit | grep -q . \
+    || fail "第三方语音资源缓存为空"
+  echo "本地第三方语音资源缓存就绪：${LOCAL_THIRD_PARTY_CACHE}"
+}
+
 write_docker_files() {
   local stage="$1"
 
@@ -179,6 +192,7 @@ COPY apps ./apps
 COPY gateways ./gateways
 COPY packages ./packages
 COPY services ./services
+COPY third-party-cache ./apps/h5-demo/vendor/voice
 COPY pyproject.toml ./pyproject.toml
 
 EXPOSE 18765
@@ -194,6 +208,7 @@ create_archive() {
   local archive="$2"
   local stage="${TEMP_DIR}/构建上下文"
   mkdir -p "${stage}"
+  prepare_local_third_party_cache
 
   # 只收集运行所需目录，主动排除密钥、证书、缓存、测试和本地产物。
   tar --no-xattrs -C "${PROJECT_ROOT}" -cf - \
@@ -209,6 +224,7 @@ create_archive() {
     --exclude='.DS_Store' \
     --exclude='*/tests' \
     --exclude='*/tests/*' \
+    --exclude='apps/h5-demo/vendor/voice' \
     apps gateways packages services pyproject.toml \
     | tar -C "${stage}" -xf -
 
@@ -264,6 +280,7 @@ publish_archive() {
   scp -- "${archive}" "${REMOTE_TARGET}:${remote_archive}"
   scp -- "${REMOTE_RUNNER_LOCAL}" "${REMOTE_TARGET}:${remote_runner}"
   ensure_remote_libopus_cache
+  sync_remote_third_party_cache
 
   echo "开始远端版本化发布：${release_id}"
   ssh -- "${REMOTE_TARGET}" env \
@@ -276,6 +293,23 @@ publish_archive() {
     H5_WEBSOCKET_ROUTE="${H5_WEBSOCKET_ROUTE}" \
     CODE_ONLY_RELEASE="${CODE_ONLY_RELEASE:-1}" \
     bash "${remote_runner}"
+}
+
+sync_remote_third_party_cache() {
+  local relative remote_hash local_hash
+  ssh -- "${REMOTE_TARGET}" "mkdir -p '${REMOTE_THIRD_PARTY_CACHE}'"
+  while IFS= read -r -d '' file; do
+    relative="${file#${LOCAL_THIRD_PARTY_CACHE}/}"
+    remote_hash="$(ssh -- "${REMOTE_TARGET}" "if [ -f '${REMOTE_THIRD_PARTY_CACHE}/${relative}' ]; then sha256sum '${REMOTE_THIRD_PARTY_CACHE}/${relative}' | cut -d' ' -f1; fi")"
+    local_hash="$(sha256_file "${file}")"
+    if [[ "${remote_hash}" != "${local_hash}" ]]; then
+      ssh -- "${REMOTE_TARGET}" "mkdir -p '${REMOTE_THIRD_PARTY_CACHE}/$(dirname "${relative}")'"
+      scp -- "${file}" "${REMOTE_TARGET}:${REMOTE_THIRD_PARTY_CACHE}/${relative}"
+      echo "第三方缓存已补传：${relative}"
+    else
+      echo "第三方缓存已命中：${relative}"
+    fi
+  done < <(find "${LOCAL_THIRD_PARTY_CACHE}" -type f -not -name '.DS_Store' -print0)
 }
 
 ensure_remote_libopus_cache() {

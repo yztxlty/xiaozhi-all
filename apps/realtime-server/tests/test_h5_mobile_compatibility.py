@@ -177,7 +177,8 @@ def test_h5_resumes_audio_context_after_async_microphone_and_vad_setup() -> None
 def test_h5_mac_chrome_vad_reads_the_same_live_microphone_stream() -> None:
     script = APP.read_text(encoding="utf-8")
 
-    assert "getStream: async () => sourceStream" in script
+    assert "getStream: async () => ensureCaptureStream()" in script
+    assert "resumeStream: async () => ensureCaptureStream()" in script
     assert "sourceStream.clone()" not in script
     assert "onFrameProcessed:" in script
     assert "track.getSettings()" in script
@@ -416,3 +417,25 @@ async def test_h5_vad_uses_precompressed_transfer_when_browser_accepts_gzip() ->
     assert response.body == compressed
     assert response.headers["Content-Encoding"] == "gzip"
     assert response.headers["Vary"] == "Accept-Encoding"
+
+
+def test_h5_vad_reacquires_an_inactive_microphone_stream() -> None:
+    app = APP.read_text(encoding="utf-8")
+    assert "ensureCaptureStream" in app
+    assert "track.readyState !== 'live'" in app
+    assert "getStream: async () => ensureCaptureStream()" in app
+    assert "resumeStream: async () => ensureCaptureStream()" in app
+
+
+def test_h5_call_transcript_and_latency_reserve_stable_layout_slots() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    assert "height:72px!important" in css
+    assert "text-overflow:ellipsis" in css
+    assert "min-height:54px" in css
+
+
+def test_h5_tts_playback_has_a_small_jitter_buffer_before_scheduling() -> None:
+    app = APP.read_text(encoding="utf-8")
+    assert "START_BUFFER_SAMPLES = Math.floor(TTS_SAMPLE_RATE * 0.18)" in app
+    assert "pendingCount < START_BUFFER_SAMPLES" in app
+    assert "schedule(true)" in app

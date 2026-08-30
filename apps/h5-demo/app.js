@@ -357,12 +357,14 @@
 
   const Playback = (() => {
     const MIN_BLOCK_SAMPLES = Math.floor(TTS_SAMPLE_RATE * 0.04);
+    const START_BUFFER_SAMPLES = Math.floor(TTS_SAMPLE_RATE * 0.18);
     let carry = new Uint8Array(0);
     let pending = [];
     let pendingCount = 0;
     let cursor = 0;
     let sources = [];
     let resuming = false;
+    let started = false;
     let idleWaiters = [];
 
     function isIdle() {
@@ -376,8 +378,8 @@
       waiters.forEach((resolve) => resolve());
     }
 
-    function schedule() {
-      if (!pendingCount) return;
+    function schedule(force = false) {
+      if (!pendingCount || (!force && !started && pendingCount < START_BUFFER_SAMPLES)) return;
       const context = ensureAudioContext();
       if (context.state !== 'running') {
         if (!resuming) {
@@ -394,6 +396,7 @@
       let offset = 0;
       pending.forEach((part) => { merged.set(part, offset); offset += part.length; });
       pending = []; pendingCount = 0;
+      started = true;
       const buffer = context.createBuffer(1, merged.length, TTS_SAMPLE_RATE);
       buffer.copyToChannel(merged, 0);
       const source = context.createBufferSource();
@@ -429,13 +432,13 @@
       },
       flush() {
         carry = new Uint8Array(0);
-        schedule();
+        schedule(true);
         if (isIdle()) return Promise.resolve();
         return new Promise((resolve) => idleWaiters.push(resolve));
       },
       reset() {
         sources.forEach((source) => { try { source.stop(); } catch {} });
-        sources = []; pending = []; pendingCount = 0; carry = new Uint8Array(0); cursor = 0;
+        sources = []; pending = []; pendingCount = 0; carry = new Uint8Array(0); cursor = 0; started = false;
         resuming = false;
         resolveIdle();
       },
@@ -698,6 +701,16 @@
     let vadRecovering = false;
     let speechCaptureActive = false;
 
+    async function ensureCaptureStream() {
+      const stream = AudioCapture.getStream();
+      const track = stream?.getAudioTracks?.()[0];
+      if (!track || track.readyState !== 'live' || !stream.active) {
+        appendDebug('VAD', '麦克风音轨已失活，重新申请并挂接物理麦克风');
+        await AudioCapture.startHandsFree();
+      }
+      return AudioCapture.getStream();
+    }
+
     function startVadWatchdog() {
       clearInterval(vadWatchdog);
       vadWatchdog = setInterval(async () => {
@@ -709,6 +722,7 @@
         vadRecovering = true;
         appendDebug('VAD', '检测帧超过 5 秒未更新，按官方生命周期重新挂接输入');
         try {
+          await ensureCaptureStream();
           await detector.pause();
           await detector.start();
           lastVadFrameAt = performance.now();
@@ -807,7 +821,6 @@
         await loadVoiceLibraries();
         if (!window.vad || !window.vad.MicVAD) throw new Error('Silero VAD 未加载');
         await AudioCapture.startHandsFree();
-        const sourceStream = AudioCapture.getStream();
         detector = await window.vad.MicVAD.new({
           model: 'v5',
           startOnLoad: false,
@@ -820,9 +833,9 @@
           minSpeechMs: 260,
           baseAssetPath: VAD_BASE,
           onnxWASMBasePath: ONNX_BASE,
-          getStream: async () => sourceStream,
+          getStream: async () => ensureCaptureStream(),
           pauseStream: async () => {},
-          resumeStream: async () => sourceStream,
+          resumeStream: async () => ensureCaptureStream(),
           onFrameProcessed: (probabilities, frame) => {
             lastVadFrameAt = performance.now();
             // 单一音频源：VAD 分析帧同时驱动前滚缓冲和 ASR，避免双 ScriptProcessor 长时间后分叉。
@@ -859,6 +872,7 @@
         if (!active || !detector || vadRecovering) return;
         vadRecovering = true;
         try {
+          await ensureCaptureStream();
           await ensureAudioContextRunning(ensureAudioContext());
           await detector.pause();
           await detector.start();
