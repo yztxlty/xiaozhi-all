@@ -1,6 +1,6 @@
 import asyncio
 
-from model_router.contracts import LLMCompleted, LLMStarted, LLMTextDelta
+from model_router.contracts import LLMCancelled, LLMCompleted, LLMStarted, LLMTextDelta
 from model_router.providers.dify_chatflow.event_parser import DifyChatflowEvent
 from model_router.providers.dify_chatflow.provider import DifyChatflowProvider
 
@@ -38,3 +38,40 @@ async def test_provider_maps_chatflow_to_one_ordered_llm_stream(chatflow_setting
     assert isinstance(events[-1], LLMCompleted)
     assert events[-1].reply_text == "你好"
     assert events[-1].usage == {"total_tokens": 2}
+
+
+async def test_provider_does_not_aclose_stream_while_anext_is_cancelled(chatflow_settings, llm_request):
+    release = asyncio.Event()
+
+    class InFlightStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await release.wait()
+            raise StopAsyncIteration
+
+        async def aclose(self):
+            raise AssertionError("must not close an in-flight async generator")
+
+    class Client:
+        def stream(self, _payload):
+            return InFlightStream()
+
+        async def stop(self, _task_id, _user):
+            return None
+
+    provider = DifyChatflowProvider(chatflow_settings, Client())
+    cancel = asyncio.Event()
+    events = []
+
+    async def consume():
+        async for item in provider.stream(llm_request, cancel):
+            events.append(item)
+
+    task = asyncio.create_task(consume())
+    await asyncio.sleep(0)
+    cancel.set()
+    await task
+
+    assert any(isinstance(item, LLMCancelled) for item in events)

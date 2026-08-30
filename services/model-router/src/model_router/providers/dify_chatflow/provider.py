@@ -61,13 +61,17 @@ class DifyChatflowProvider(LLMProvider):
         task_id: str | None = None
         sequence = 0
         parts: list[str] = []
+        cancel_requested = False
 
         try:
             while True:
                 next_event = asyncio.create_task(anext(iterator))
-                cancelled = asyncio.create_task(cancel_event.wait())
-                done, _ = await asyncio.wait({next_event, cancelled}, return_when=asyncio.FIRST_COMPLETED)
-                if cancelled in done and cancelled.result():
+                cancel_waiter = asyncio.create_task(cancel_event.wait())
+                done, _ = await asyncio.wait({next_event, cancel_waiter}, return_when=asyncio.FIRST_COMPLETED)
+                if cancel_waiter in done and cancel_waiter.result():
+                    # 取消 anext() 后，async generator 可能仍在执行收尾；此时再调用
+                    # aclose() 会触发 "asynchronous generator is already running"。
+                    cancel_requested = True
                     next_event.cancel()
                     with suppress(asyncio.CancelledError, StopAsyncIteration):
                         await next_event
@@ -76,9 +80,9 @@ class DifyChatflowProvider(LLMProvider):
                             await self.client.stop(task_id, request.user_id)
                     yield LLMCancelled(**self._base(request))
                     return
-                cancelled.cancel()
+                cancel_waiter.cancel()
                 with suppress(asyncio.CancelledError):
-                    await cancelled
+                    await cancel_waiter
 
                 try:
                     event = next_event.result()
@@ -133,8 +137,11 @@ class DifyChatflowProvider(LLMProvider):
                 retryable=False,
                 delta_emitted=bool(parts),
             )
+        except asyncio.CancelledError:
+            cancel_requested = True
+            raise
         finally:
             close = getattr(iterator, "aclose", None)
-            if close:
+            if close and not cancel_requested:
                 with suppress(Exception):
                     await close()
